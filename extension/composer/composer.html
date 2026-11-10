@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nuevo hilo de T3</title>
+    <link rel="stylesheet" href="../lib/ui.css" />
+    <link rel="stylesheet" href="composer.css" />
+  </head>
+  <body>
+    <main id="app" class="stack">
+      <header class="row page">
+        <img id="favicon" width="16" height="16" alt="" class="hidden" />
+        <div class="grow">
+          <div id="page-title" class="title"></div>
+          <div id="page-url" class="muted small mono url"></div>
+        </div>
+        <span id="mode-pill" class="pill"></span>
+      </header>
+
+      <section id="shots" class="shots"></section>
+
+      <section id="element-card" class="card stack hidden">
+        <div class="row">
+          <code id="el-descriptor" class="grow el-descriptor"></code>
+          <span id="el-size" class="muted small"></span>
+        </div>
+        <div id="el-meta" class="small muted"></div>
+        <details>
+          <summary class="small muted">HTML del elemento</summary>
+          <pre id="el-html"></pre>
+        </details>
+      </section>
+
+      <section class="stack">
+        <label class="field">
+          ¿Qué querés que haga el agente?
+          <textarea id="user-text" placeholder="Ej: este botón no responde en mobile, arreglalo…" autofocus></textarea>
+        </label>
+        <div class="row wrap toggles">
+          <label class="check"><input type="checkbox" id="inc-dom" checked /> DOM del elemento</label>
+          <label class="check"><input type="checkbox" id="inc-interactions" checked /> <span id="lbl-interactions">Interacciones</span></label>
+          <label class="check"><input type="checkbox" id="inc-console" checked /> <span id="lbl-console">Consola</span></label>
+          <label class="check"><input type="checkbox" id="inc-network" checked /> <span id="lbl-network">Red</span></label>
+        </div>
+        <details id="preview-details">
+          <summary class="small muted">Ver el mensaje que se va a enviar</summary>
+          <pre id="preview"></pre>
+        </details>
+      </section>
+
+      <section class="card stack">
+        <h2>Destino</h2>
+        <div class="grid">
+          <label class="field">Dispositivo <select id="device"></select></label>
+          <label class="field">Proyecto <select id="project" disabled></select></label>
+          <label class="field" id="workspace-field">
+            Workspace
+            <select id="workspace">
+              <option value="root">Carpeta del proyecto</option>
+              <option value="worktree">Nuevo worktree</option>
+            </select>
+          </label>
+          <label class="field" id="baseref-field">Rama base del worktree <input type="text" id="baseref" placeholder="main" /></label>
+          <label class="field span2">Título <input type="text" id="title" placeholder="Automático" /></label>
+        </div>
+      </section>
+
+      <section class="card stack">
+        <h2>Modelo</h2>
+        <div class="grid">
+          <label class="field span2">
+            Modelo
+            <select id="model" disabled></select>
+          </label>
+          <div id="model-options" class="contents"></div>
+          <label class="field">
+            Permisos
+            <select id="runtime"></select>
+          </label>
+          <label class="check plan"><input type="checkbox" id="plan" /> Empezar en modo plan</label>
+        </div>
+        <div class="row">
+          <input type="text" id="model-search" class="grow" placeholder="Buscar otro modelo (Enter)…" />
+        </div>
+      </section>
+    </main>
+
+    <footer class="row">
+      <div id="status" class="grow small muted"></div>
+      <button id="submit" class="primary" disabled>Crear hilo <kbd>⌘↵</kbd></button>
+    </footer>
+
+    <section id="done" class="hidden stack done">
+      <div class="big">✓</div>
+      <h1>Hilo creado</h1>
+      <p class="muted" id="done-detail"></p>
+      <div class="row center">
+        <a id="done-link" class="btn primary" target="_blank" rel="noopener">Abrir en T3</a>
+        <button id="done-copy">Copiar link</button>
+        <button id="done-close">Cerrar</button>
+      </div>
+    </section>
+
+    <dialog id="lightbox"><img id="lightbox-img" alt="" /></dialog>
+    <script type="module" src="composer.js"></script>
+  </body>
+</html>

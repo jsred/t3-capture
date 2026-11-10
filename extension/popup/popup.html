@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../lib/ui.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="row">
+      <img src="../icons/icon.svg" width="22" height="22" alt="" />
+      <h1 class="grow">T3 Capture</h1>
+      <button id="settings" class="ghost" title="Ajustes">⚙︎</button>
+    </header>
+
+    <div id="no-server" class="status hidden">
+      Todavía no conectaste T3 Code. <a href="#" id="connect">Conectar</a>
+    </div>
+
+    <div class="actions">
+      <button data-mode="element">
+        <span class="icon">⌖</span>
+        <span class="grow">Seleccionar elemento</span>
+        <kbd data-command="pick-element"></kbd>
+      </button>
+      <button data-mode="area">
+        <span class="icon">⬚</span>
+        <span class="grow">Seleccionar área</span>
+        <kbd data-command="pick-area"></kbd>
+      </button>
+      <button data-mode="visible">
+        <span class="icon">▣</span>
+        <span class="grow">Captura visible</span>
+        <kbd data-command="capture-visible"></kbd>
+      </button>
+    </div>
+    <p class="muted small foot">También con click derecho → “Crear hilo de T3…”.</p>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

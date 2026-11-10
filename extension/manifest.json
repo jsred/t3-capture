@@ -1,0 +1,78 @@
+{
+  "manifest_version": 3,
+  "name": "T3 Capture",
+  "short_name": "T3 Capture",
+  "version": "0.1.0",
+  "author": "jsred",
+  "homepage_url": "https://github.com/jsred/t3-capture",
+  "description": "Seleccioná un elemento o sacá una captura y creá un hilo de T3 Code con contexto del DOM y eventos.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "t3-capture@jsred.github.io",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "icons": {
+    "48": "icons/icon.svg",
+    "96": "icons/icon.svg"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "tabs",
+    "menus",
+    "identity",
+    "notifications",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "action": {
+    "default_title": "T3 Capture",
+    "default_popup": "popup/popup.html",
+    "default_icon": "icons/icon.svg"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*", "file:///*"],
+      "js": ["content/recorder-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["http://*/*", "https://*/*", "file:///*"],
+      "js": ["content/content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+T" },
+      "description": "Abrir T3 Capture"
+    },
+    "pick-element": {
+      "suggested_key": { "default": "Alt+Shift+E" },
+      "description": "Seleccionar un elemento de la página"
+    },
+    "pick-area": {
+      "suggested_key": { "default": "Alt+Shift+A" },
+      "description": "Seleccionar un área para capturar"
+    },
+    "capture-visible": {
+      "suggested_key": { "default": "Alt+Shift+S" },
+      "description": "Capturar la parte visible de la página"
+    }
+  }
+}

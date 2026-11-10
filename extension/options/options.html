@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>T3 Capture · Ajustes</title>
+    <link rel="stylesheet" href="../lib/ui.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="stack">
+      <header class="row">
+        <img src="../icons/icon.svg" width="28" height="28" alt="" />
+        <h1 class="grow">T3 Capture · Ajustes</h1>
+      </header>
+
+      <div id="perm" class="status error hidden row">
+        <span class="grow">La extensión necesita permiso para leer las páginas y hablar con T3.</span>
+        <button id="grant" class="primary">Dar permiso</button>
+      </div>
+
+      <section class="stack">
+        <h2>Dispositivos de T3</h2>
+        <p class="muted small">
+          Cada dispositivo es una máquina con T3 Code (tu Mac, un VPS por Tailscale…). Si en T3 tenés activados los
+          entornos vinculados (Settings → Labs), también vas a poder elegir esas máquinas al crear el hilo.
+        </p>
+        <div id="servers" class="stack"></div>
+      </section>
+
+      <section class="card stack">
+        <h3>Conectar un dispositivo</h3>
+        <ol class="small muted steps">
+          <li>En la máquina con T3, corré <code>t3 pair</code> en la terminal (o usá un link de emparejamiento de T3).</li>
+          <li>Pegá acá el link (<code>http://…/pair#token=…</code>) o solo el código.</li>
+        </ol>
+        <form id="pair-form" class="stack">
+          <label class="field">
+            Link o código de emparejamiento
+            <input id="pair-input" type="text" placeholder="http://127.0.0.1:3773/pair#token=XXXXXXXXXXXX" autocomplete="off" required />
+          </label>
+          <label class="field">
+            Dirección del servidor T3
+            <input id="origin-input" type="text" placeholder="http://127.0.0.1:3773" />
+          </label>
+          <div class="row wrap">
+            <button type="submit" class="primary" id="pair-submit">Conectar con código</button>
+            <span class="muted small">o</span>
+            <button type="button" id="oauth-btn">Aprobar en T3 (ventana)</button>
+          </div>
+          <div id="pair-status" class="status hidden"></div>
+        </form>
+      </section>
+
+      <section class="card stack">
+        <h3>Captura</h3>
+        <label class="check"><input type="checkbox" id="set-inputs" /> Registrar el valor de los campos de texto (contraseñas y tarjetas siempre se ocultan)</label>
+        <div class="row wrap">
+          <label class="field">Máx. interacciones en el prompt <input type="number" id="set-max-events" min="0" max="200" /></label>
+          <label class="field">Máx. líneas de consola <input type="number" id="set-max-console" min="0" max="150" /></label>
+          <label class="field">Máx. requests de red <input type="number" id="set-max-network" min="0" max="150" /></label>
+        </div>
+        <p class="muted small">
+          Atajos: <span id="shortcuts"></span>. Se cambian en <code>about:addons</code> → ⚙︎ → Administrar atajos de teclado.
+        </p>
+      </section>
+    </main>
+    <template id="server-tpl">
+      <div class="card row server">
+        <div class="grow">
+          <div class="row"><strong class="label"></strong><span class="pill state"></span></div>
+          <div class="muted small mono origin"></div>
+          <div class="muted small links"></div>
+        </div>
+        <button class="test">Probar</button>
+        <button class="danger remove">Quitar</button>
+      </div>
+    </template>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,39 @@
+name: Release
+
+# Crea un tag vX.Y.Z (con la misma versión en extension/manifest.json) y
+# este workflow publica el .xpi en GitHub Releases.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verificar que el tag coincide con el manifest
+        run: |
+          version=$(node -p "require('./extension/manifest.json').version")
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME != manifest v$version"; exit 1; }
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Publicar .xpi
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          xpi="t3-capture-${GITHUB_REF_NAME}.xpi"
+          cp dist/*.zip "$xpi"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$xpi" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$xpi" --title "T3 Capture $GITHUB_REF_NAME" --generate-notes
+          fi

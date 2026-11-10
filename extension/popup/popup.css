@@ -1,0 +1,8 @@
+body { width: 290px; padding: 12px; }
+header { margin-bottom: 10px; }
+.actions { display: flex; flex-direction: column; gap: 6px; }
+.actions button { width: 100%; justify-content: flex-start; padding: 9px 10px; text-align: left; }
+.actions .icon { width: 18px; text-align: center; font-size: 15px; color: var(--accent); }
+.actions kbd:empty { display: none; }
+.status { margin-bottom: 10px; }
+.foot { margin: 10px 2px 0; }

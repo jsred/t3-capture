@@ -1,0 +1,5 @@
+body { padding: 28px 20px 60px; }
+main { max-width: 680px; margin: 0 auto; gap: 18px; }
+.steps { margin: 0; padding-left: 18px; }
+.server .label { font-size: 14px; }
+.row.wrap .field { flex: 1; min-width: 160px; }
