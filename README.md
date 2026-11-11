@@ -98,7 +98,7 @@ Los atajos se cambian desde *Cambiar atajos* en los ajustes de la extensión (en
 
 ## Privacidad
 
-- Todo queda entre el navegador y tu T3; no hay servicios externos.
+- Todo queda entre el navegador y tu T3; no hay servicios externos. Detalle completo en [PRIVACY.md](PRIVACY.md).
 - Los campos de contraseña, tarjeta, tokens y similares siempre se registran como `[oculto]`. Podés desactivar el registro de valores de inputs en los ajustes.
 - Los eventos viven solo en la memoria de cada pestaña (máximo 200 interacciones, 150 líneas de consola y 150 requests) y se pierden al recargar. Las capturas se guardan en IndexedDB hasta crear el hilo (o 24 horas como máximo).
 - Antes de enviar podés ver el mensaje exacto (*Ver el mensaje que se va a enviar*) y apagar cada sección.
@@ -129,6 +129,9 @@ extension/                 fuente común (manifest de Firefox)
 scripts/
   build-chrome.mjs         genera dist/chrome y su manifest
   render-icons.mjs         PNG de los íconos a partir del SVG
+  store-assets.mjs         imágenes para las stores (store/images)
+  publish-chrome.mjs       sube y publica en la Chrome Web Store (API v2)
+store/                     fichas de AMO y Chrome Web Store, e imágenes
 test/
   format.test.js           npm test
   content-dom.mjs          npm run test:dom      (Chromium headless)
@@ -149,7 +152,13 @@ Issues y PRs bienvenidos.
 - `npm run test:firefox` hace lo mismo con el `.xpi` en Zen o Firefox headless, con un perfil temporal. Necesita [geckodriver](https://github.com/mozilla/geckodriver/releases) (`GECKODRIVER`) y el navegador (`FIREFOX_BIN`, por defecto Zen en `/Applications`).
 - `npm run test:live -- <código de t3 pair>` prueba el cliente contra un T3 real. Crea una sesión en T3 que después podés revocar en Settings → Connections.
 
-Para publicar una versión: subí `version` en `extension/manifest.json` y en `package.json`, y creá el tag `vX.Y.Z`. El workflow *Release* adjunta el `.xpi` y el `.zip` de Chrome a la release.
+## Publicar una versión
+
+1. Subí `version` en `extension/manifest.json` y en `package.json`, y creá el tag `vX.Y.Z`. El workflow *Release* adjunta el `.xpi` y el `.zip` de Chrome a la release de GitHub.
+2. **addons.mozilla.org:** `WEB_EXT_API_KEY=… WEB_EXT_API_SECRET=… npm run publish:firefox`. Las claves se generan en <https://addons.mozilla.org/developers/addon/api/key/>. La ficha sale de `store/amo-metadata.json` (solo se usa entera en la primera versión).
+3. **Chrome Web Store:** la primera vez, subí el `.zip` a mano en el [panel de desarrollador](https://chrome.google.com/webstore/devconsole) y completá la ficha con `store/chrome-listing.md`. Las versiones siguientes se publican con `npm run publish:chrome` (las variables están en `scripts/publish-chrome.mjs`).
+
+Las imágenes de las fichas (`store/images/`) se regeneran con `npm run store:assets`. La política de privacidad está en [PRIVACY.md](PRIVACY.md).
 
 ## Licencia
 

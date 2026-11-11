@@ -22,12 +22,12 @@ export const PAGE = `<!doctype html><html><head><title>Tienda demo</title></head
 
 export const TOKEN = "test-token";
 
-export async function startMockT3() {
+export async function startMockT3({ label = "Mac simulada" } = {}) {
   const mock = { originRejected: 0, mcpCalls: [], uploads: [], launch: null };
   let base;
   const tool = (result) => ({ content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result, isError: false });
   const TOOLS = {
-    t3_environment_read: () => ({ environmentId: "env-mock", label: "Mac simulada" }),
+    t3_environment_read: () => ({ environmentId: "env-mock", label }),
     t3_project_list: () => ({ projects: [{ id: "p1", title: "Tienda", workspaceRoot: "/tmp/tienda", updatedAt: "2026-11-10T00:00:00Z" }], nextCursor: null }),
     orchestrator_capabilities: () => ({
       providers: [

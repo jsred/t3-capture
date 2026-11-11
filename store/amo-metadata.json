@@ -1,0 +1,31 @@
+{
+  "categories": {
+    "firefox": [
+      "web-development"
+    ]
+  },
+  "summary": {
+    "en-US": "Pick an element, an area or a screenshot and create a T3 Code thread with DOM context, console errors, network requests and recent interactions.",
+    "es-AR": "Seleccioná un elemento, un área o una captura y creá un hilo de T3 Code con contexto del DOM, errores de consola, requests e interacciones."
+  },
+  "description": {
+    "en-US": "T3 Capture turns a bug you see in the browser into a T3 Code thread with everything the agent needs.\n\n• Pick an element (right click, shortcut or toolbar button), select an area or capture the visible page.\n• The thread gets the screenshots, CSS selector, HTML, React or Vue components with their source file, plus recent console errors, network requests, SPA navigation and interactions. Passwords and card numbers are always masked.\n• Before creating the thread, choose the device, project, workspace, model, reasoning effort and permissions.\n• Optional system instructions, a default one and one per project, added at the top of every new thread.\n\nRequires T3 Code running on your computer or another device you own. Pair the extension from its settings with `t3 pair`.\n\nThe extension has no servers of its own and sends nothing to the developer. Captures only leave the browser when you click “Create thread”, and go only to the T3 Code server you paired. The UI is in Spanish. Source code: https://github.com/jsred/t3-capture",
+    "es-AR": "T3 Capture convierte un bug que ves en el navegador en un hilo de T3 Code con todo lo que el agente necesita.\n\n• Elegí un elemento (click derecho, atajo o botón de la barra), seleccioná un área o capturá la parte visible de la página.\n• El hilo recibe las capturas, el selector, el HTML, los componentes de React o Vue con su archivo, y los últimos errores de consola, requests, navegación e interacciones. Las contraseñas y tarjetas siempre se ocultan.\n• Antes de crear el hilo elegís dispositivo, proyecto, workspace, modelo, reasoning effort y permisos.\n• Instrucciones del sistema opcionales, una default y una por proyecto, que van al principio de cada hilo nuevo.\n\nNecesita T3 Code abierto en tu computadora u otro dispositivo tuyo. Se empareja desde los ajustes de la extensión con `t3 pair`.\n\nLa extensión no tiene servidores propios y no le manda nada al autor. Las capturas solo salen del navegador cuando tocás «Crear hilo», y van únicamente al servidor de T3 Code que emparejaste. Código fuente: https://github.com/jsred/t3-capture"
+  },
+  "homepage": {
+    "en-US": "https://github.com/jsred/t3-capture"
+  },
+  "support_url": {
+    "en-US": "https://github.com/jsred/t3-capture/issues"
+  },
+  "version": {
+    "license": "MIT",
+    "release_notes": {
+      "en-US": "First version on addons.mozilla.org.",
+      "es-AR": "Primera versión en addons.mozilla.org."
+    }
+  },
+  "developer_comments": {
+    "en-US": "Notes for reviewers: the extension talks only to the user's own T3 Code server (paired from the settings page; by default http://127.0.0.1:3773). The blocking webRequest listener removes the Origin header only from the extension's own requests to /mcp on that server, because T3 Code rejects requests with an unknown Origin (DNS-rebinding protection). No code is minified or bundled; the source in the package is the source in the repository. To test without T3 Code, run `npm run test:firefox` from the repository, which uses a mock server."
+  }
+}
