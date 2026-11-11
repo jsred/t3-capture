@@ -17,7 +17,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      - run: npx playwright install --with-deps chromium
+      # Sin --with-deps: la imagen de Ubuntu ya trae las bibliotecas de Chrome
+      # y así no dependemos de los mirrors de apt.
+      - run: npx playwright install chromium
       - run: npm run test:dom
       - name: End-to-end en Chromium (dist/chrome)
         run: npm run test:chrome
