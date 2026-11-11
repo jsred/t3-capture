@@ -1,5 +1,6 @@
 // Ejercita los content scripts en Chromium headless con un stub de `browser`.
-// (Firefox expone `wrappedJSObject`; acá el script cae al nodo directo.)
+// Los dos scripts corren en el mismo mundo acá; el puente de componentes
+// React/Vue (eventos t3capture:probe) funciona igual.
 import { chromium } from "playwright";
 import fs from "node:fs";
 import http from "node:http";
@@ -51,11 +52,11 @@ await page.click("[data-testid=buy-button]");
 await page.waitForTimeout(300);
 await page.keyboard.press("Escape");
 
-const run = (msg) => page.evaluate((m) => window.__t3listener(m), msg);
+const run = (msg) => page.evaluate((m) => new Promise((resolve) => window.__t3listener(m, {}, resolve)), msg);
 assert.deepEqual(await run({ type: "t3capture:ping" }), { ok: true });
 
 // 1) elemento directo (como desde el menú contextual)
-const direct = await run({ type: "t3capture:run", mode: "element", targetElementId: "[data-testid=buy-button]" });
+const direct = await run({ type: "t3capture:run", mode: "element", fromContextMenu: true, targetElementId: "[data-testid=buy-button]" });
 assert.equal(direct.element.selector, 'button[data-testid="buy-button"]');
 assert.deepEqual(direct.element.framework.react.components, ["BuyButton", "CheckoutForm"]);
 assert.equal(direct.element.framework.react.source, "src/Buy.tsx:12");
@@ -68,6 +69,12 @@ assert.ok(direct.interactions.some((e) => e.type === "navigate" && e.detail.ends
 assert.ok(direct.console.some((c) => c.level === "error" && c.message.includes("Pago falló") && c.message.includes("Error: boom")));
 assert.ok(direct.network.some((n) => n.url.endsWith("/api/pay") && n.status === 500 && n.method === "POST"));
 console.log("✓ elemento directo + grabación (inputs, password oculto, click, consola, red, navegación)");
+
+// 1b) click derecho sin menus.getTargetElement (Chrome): último elemento con contextmenu
+await page.click("#email", { button: "right" });
+const fromContext = await run({ type: "t3capture:run", mode: "element", fromContextMenu: true });
+assert.equal(fromContext.element.selector, "#email");
+console.log("✓ click derecho → último elemento del menú contextual");
 
 // 2) selector interactivo: hover sobre el span, ↑ al <p>, click
 const picking = run({ type: "t3capture:run", mode: "element" });

@@ -1,5 +1,7 @@
+import "../lib/browser-shim.js";
 import { DEFAULT_ORIGIN, McpClient, normalizeOrigin, pairWithCode, parsePairingInput, signInWithBrowser } from "../lib/t3client.js";
 import { getServers, getSettings, removeServer, saveServer, updateSettings } from "../lib/store.js";
+import { openShortcutSettings } from "../lib/platform.js";
 
 const $ = (id) => document.getElementById(id);
 const ALL_URLS = { origins: ["<all_urls>"] };
@@ -157,5 +159,9 @@ $("shortcuts").textContent = commands
   .filter((c) => c.shortcut)
   .map((c) => `${c.shortcut} (${c.description || c.name})`)
   .join(" · ");
+$("edit-shortcuts").addEventListener("click", (e) => {
+  e.preventDefault();
+  openShortcutSettings();
+});
 
 renderServers();

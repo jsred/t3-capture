@@ -3,7 +3,9 @@
 // usan los agentes, así que la extensión no depende de detalles internos.
 
 export const DEFAULT_ORIGIN = "http://127.0.0.1:3773";
-const CLIENT_NAME = "T3 Capture (Zen)";
+const BROWSER_LABEL = { "moz-extension:": "Firefox", "chrome-extension:": "Chrome" }[globalThis.location?.protocol] ?? "script";
+const CLIENT_NAME = `T3 Capture (${BROWSER_LABEL})`;
+const clientVersion = () => globalThis.browser?.runtime?.getManifest?.().version ?? "dev";
 const MCP_PROTOCOL_VERSION = "2025-06-18";
 
 export class T3AuthError extends Error {
@@ -264,7 +266,7 @@ export class McpClient {
           params: {
             protocolVersion: MCP_PROTOCOL_VERSION,
             capabilities: {},
-            clientInfo: { name: "t3-capture-zen", version: "0.1.0" },
+            clientInfo: { name: "t3-capture", version: clientVersion() },
           },
         });
         await this.post({ jsonrpc: "2.0", method: "notifications/initialized", params: {} });

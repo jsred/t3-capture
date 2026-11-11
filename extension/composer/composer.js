@@ -1,3 +1,4 @@
+import "../lib/browser-shim.js";
 import { McpClient, T3ToolError } from "../lib/t3client.js";
 import { deleteCapture, getCapture } from "../lib/db.js";
 import { getPrefs, getServers, getSettings, updatePrefs } from "../lib/store.js";

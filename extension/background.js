@@ -1,57 +1,95 @@
+import "./lib/browser-shim.js";
 import { putCapture, pruneCaptures } from "./lib/db.js";
+
+// Firefox: página de eventos (background.scripts). Chrome: service worker.
+const IS_SERVICE_WORKER = typeof ServiceWorkerGlobalScope !== "undefined" && self instanceof ServiceWorkerGlobalScope;
+const PERMISSIONS = browser.runtime.getManifest().permissions || [];
+const menus = browser.menus ?? browser.contextMenus;
 
 // ---------- Origin para /mcp ----------
 // El MCP de T3 rechaza con 403 cualquier request con un header Origin que no
-// tenga en su lista (protección contra DNS rebinding), y Firefox manda
-// `Origin: moz-extension://…` en los POST de la extensión. Lo quitamos solo
-// en los requests que hace esta extensión a un endpoint `/mcp`.
-const EXTENSION_BASE = browser.runtime.getURL("");
-browser.webRequest.onBeforeSendHeaders.addListener(
-  (details) => {
-    const fromExtension = (details.originUrl || details.documentUrl || "").startsWith(EXTENSION_BASE);
-    if (!fromExtension || new URL(details.url).pathname !== "/mcp") return {};
-    return { requestHeaders: details.requestHeaders.filter((h) => h.name.toLowerCase() !== "origin") };
-  },
-  { urls: ["http://*/mcp", "https://*/mcp"], types: ["xmlhttprequest"] },
-  ["blocking", "requestHeaders"],
-);
+// tenga en su lista (protección contra DNS rebinding), y el navegador manda
+// `Origin: moz-extension://…` / `chrome-extension://…` en los POST de la
+// extensión. Lo quitamos solo en los requests de esta extensión a `/mcp`.
+const MCP_URL_REGEX = "^https?://[^/]+/mcp([?#].*)?$";
+const ORIGIN_RULE_ID = 1;
+
+if (PERMISSIONS.includes("webRequestBlocking")) {
+  // Firefox: webRequest bloqueante.
+  const EXTENSION_BASE = browser.runtime.getURL("");
+  browser.webRequest.onBeforeSendHeaders.addListener(
+    (details) => {
+      const fromExtension = (details.originUrl || details.documentUrl || "").startsWith(EXTENSION_BASE);
+      if (!fromExtension || new URL(details.url).pathname !== "/mcp") return {};
+      return { requestHeaders: details.requestHeaders.filter((h) => h.name.toLowerCase() !== "origin") };
+    },
+    { urls: ["http://*/mcp", "https://*/mcp"], types: ["xmlhttprequest"] },
+    ["blocking", "requestHeaders"],
+  );
+} else if (browser.declarativeNetRequest) {
+  // Chrome (MV3 no tiene webRequest bloqueante): regla de declarativeNetRequest
+  // limitada a requests iniciados por la propia extensión.
+  installOriginRule().catch((error) => console.error("[t3-capture] regla de Origin", error));
+}
+
+async function installOriginRule() {
+  await browser.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: [ORIGIN_RULE_ID],
+    addRules: [
+      {
+        id: ORIGIN_RULE_ID,
+        priority: 1,
+        action: { type: "modifyHeaders", requestHeaders: [{ header: "origin", operation: "remove" }] },
+        condition: {
+          regexFilter: MCP_URL_REGEX,
+          initiatorDomains: [browser.runtime.id],
+          resourceTypes: ["xmlhttprequest"],
+        },
+      },
+    ],
+  });
+}
 
 const MAX_IMAGE_BYTES = 9.5 * 1024 * 1024; // T3 acepta hasta 10 MB por imagen
 const MAX_IMAGE_SIDE = 4000;
 
 // ---------- menús contextuales ----------
+const MENU_CONTEXTS = ["page", "frame", "selection", "link", "editable", "image", "video", "audio"];
+
 browser.runtime.onInstalled.addListener(async ({ reason }) => {
-  await browser.menus.removeAll();
-  browser.menus.create({ id: "t3-element", title: "Crear hilo de T3 con este elemento", contexts: ["all"] });
-  browser.menus.create({ id: "t3-area", title: "Crear hilo de T3 con un área…", contexts: ["all"] });
-  browser.menus.create({ id: "t3-visible", title: "Crear hilo de T3 con captura visible", contexts: ["all"] });
+  await menus.removeAll();
+  menus.create({ id: "t3-element", title: "Crear hilo de T3 con este elemento", contexts: MENU_CONTEXTS });
+  menus.create({ id: "t3-area", title: "Crear hilo de T3 con un área…", contexts: MENU_CONTEXTS });
+  menus.create({ id: "t3-visible", title: "Crear hilo de T3 con captura visible", contexts: MENU_CONTEXTS });
   if (reason === "install") browser.runtime.openOptionsPage();
 });
 
 browser.runtime.onStartup.addListener(() => pruneCaptures().catch(() => {}));
 
-browser.menus.onClicked.addListener((info, tab) => {
+menus.onClicked.addListener((info, tab) => {
   if (!tab?.id) return;
-  if (info.menuItemId === "t3-element") startCapture(tab, "element", info.targetElementId);
+  // targetElementId solo existe en Firefox; en Chrome el content script usa
+  // el último elemento sobre el que se hizo click derecho.
+  if (info.menuItemId === "t3-element") startCapture(tab, "element", { fromContextMenu: true, targetElementId: info.targetElementId });
   if (info.menuItemId === "t3-area") startCapture(tab, "area");
   if (info.menuItemId === "t3-visible") startCapture(tab, "visible");
 });
 
 // ---------- atajos ----------
-browser.commands.onCommand.addListener(async (command) => {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+browser.commands.onCommand.addListener(async (command, commandTab) => {
+  const tab = commandTab?.id ? commandTab : (await browser.tabs.query({ active: true, lastFocusedWindow: true }))[0];
   if (!tab) return;
   const mode = { "pick-element": "element", "pick-area": "area", "capture-visible": "visible" }[command];
   if (mode) startCapture(tab, mode);
 });
 
 // ---------- mensajes del popup ----------
-browser.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "t3capture:start") {
     browser.tabs.get(message.tabId).then((tab) => startCapture(tab, message.mode));
-    return Promise.resolve({ ok: true });
+    sendResponse({ ok: true });
   }
-  return undefined;
+  return false;
 });
 
 // ---------- captura ----------
@@ -64,7 +102,7 @@ async function ensureContentScripts(tabId) {
     // Los eventos anteriores a este momento no quedan registrados.
     try {
       await browser.scripting.executeScript({ target: { tabId }, files: ["content/recorder-main.js"], world: "MAIN" });
-      await browser.scripting.executeScript({ target: { tabId }, files: ["content/content.js"] });
+      await browser.scripting.executeScript({ target: { tabId }, files: ["lib/browser-shim.js", "content/content.js"] });
       return true;
     } catch {
       return false;
@@ -75,7 +113,7 @@ async function ensureContentScripts(tabId) {
 function notify(message) {
   browser.notifications.create({
     type: "basic",
-    iconUrl: browser.runtime.getURL("icons/icon.svg"),
+    iconUrl: browser.runtime.getURL("icons/icon-128.png"),
     title: "T3 Capture",
     message,
   });
@@ -85,14 +123,24 @@ function notify(message) {
 // sendMessage se rechaza y se libera.
 const busyTabs = new Set();
 
-async function startCapture(tab, mode, targetElementId) {
+// Chrome apaga el service worker tras 30 s sin eventos ni llamadas a la API,
+// y elegir un elemento puede llevar más. Mientras dura la selección, una
+// llamada barata cada 20 s lo mantiene vivo.
+function keepAlive() {
+  if (!IS_SERVICE_WORKER) return () => {};
+  const timer = setInterval(() => browser.runtime.getPlatformInfo().catch(() => {}), 20_000);
+  return () => clearInterval(timer);
+}
+
+async function startCapture(tab, mode, { fromContextMenu = false, targetElementId } = {}) {
   if (busyTabs.has(tab.id)) return;
   busyTabs.add(tab.id);
+  const release = keepAlive();
   try {
     const injected = await ensureContentScripts(tab.id);
     let data;
     if (injected) {
-      data = await browser.tabs.sendMessage(tab.id, { type: "t3capture:run", mode, targetElementId });
+      data = await browser.tabs.sendMessage(tab.id, { type: "t3capture:run", mode, fromContextMenu, targetElementId });
       if (!data || data.cancelled) return;
       if (data.error) throw new Error(data.error);
     } else if (mode === "visible") {
@@ -111,17 +159,28 @@ async function startCapture(tab, mode, targetElementId) {
     console.error("[t3-capture]", error);
     notify(`No se pudo capturar: ${error.message || error}`);
   } finally {
+    release();
     busyTabs.delete(tab.id);
   }
 }
 
+// Para los tests end-to-end (test/chrome-e2e.mjs).
+globalThis.__t3capture = { startCapture };
+
 async function takeScreenshots(tab, data) {
   let dataUrl;
-  try {
-    dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, { format: "png" });
-  } catch (error) {
-    console.warn("[t3-capture] captureVisibleTab falló", error);
-    return [];
+  for (let attempt = 0; !dataUrl; attempt++) {
+    try {
+      dataUrl = await browser.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+    } catch (error) {
+      // Chrome permite 2 capturas por segundo (MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND).
+      if (attempt < 3 && /MAX_CAPTURE|quota/i.test(error?.message || "")) {
+        await new Promise((r) => setTimeout(r, 600));
+        continue;
+      }
+      console.warn("[t3-capture] captureVisibleTab falló", error);
+      return [];
+    }
   }
   const full = await createImageBitmap(await (await fetch(dataUrl)).blob());
   const viewportWidth = data.page?.viewport?.width || full.width;

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "T3 Capture",
   "short_name": "T3 Capture",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "jsred",
   "homepage_url": "https://github.com/jsred/t3-capture",
   "description": "Seleccioná un elemento o sacá una captura y creá un hilo de T3 Code con contexto del DOM y eventos.",
@@ -53,7 +53,7 @@
     },
     {
       "matches": ["http://*/*", "https://*/*", "file:///*"],
-      "js": ["content/content.js"],
+      "js": ["lib/browser-shim.js", "content/content.js"],
       "run_at": "document_start"
     }
   ],

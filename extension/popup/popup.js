@@ -1,3 +1,4 @@
+import "../lib/browser-shim.js";
 import { getServers } from "../lib/store.js";
 
 const [tab] = await browser.tabs.query({ active: true, currentWindow: true });

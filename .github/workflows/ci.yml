@@ -19,3 +19,7 @@ jobs:
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:dom
+      - name: End-to-end en Chromium (dist/chrome)
+        run: npm run test:chrome
+      - name: End-to-end en Firefox (.xpi)
+        run: FIREFOX_BIN="$(which firefox)" GECKODRIVER="$(which geckodriver)" npm run test:firefox

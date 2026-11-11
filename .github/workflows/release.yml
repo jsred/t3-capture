@@ -1,7 +1,8 @@
 name: Release
 
 # Crea un tag vX.Y.Z (con la misma versión en extension/manifest.json) y
-# este workflow publica el .xpi en GitHub Releases.
+# este workflow publica en GitHub Releases el .xpi (Zen/Firefox) y el .zip
+# (Chrome y otros Chromium).
 on:
   push:
     tags: ["v*"]
@@ -26,14 +27,14 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - name: Publicar .xpi
+      - name: Publicar .xpi y .zip
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          xpi="t3-capture-${GITHUB_REF_NAME}.xpi"
-          cp dist/*.zip "$xpi"
+          version="${GITHUB_REF_NAME#v}"
+          files="dist/t3-capture-firefox-${version}.xpi dist/t3-capture-chrome-${version}.zip"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$xpi" --clobber
+            gh release upload "$GITHUB_REF_NAME" $files --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$xpi" --title "T3 Capture $GITHUB_REF_NAME" --generate-notes
+            gh release create "$GITHUB_REF_NAME" $files --title "T3 Capture $GITHUB_REF_NAME" --generate-notes
           fi

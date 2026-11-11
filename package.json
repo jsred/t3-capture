@@ -1,8 +1,8 @@
 {
   "name": "t3-capture",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Extensión para Zen/Firefox: capturá un elemento o pantalla y creá un hilo de T3 Code con contexto del DOM y eventos.",
+  "description": "Extensión para Zen, Firefox y Chrome: capturá un elemento o pantalla y creá un hilo de T3 Code con contexto del DOM y eventos.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,11 +11,16 @@
   "type": "module",
   "scripts": {
     "lint": "web-ext lint -s extension",
-    "build": "web-ext build -s extension -a dist --overwrite-dest",
+    "build": "npm run build:firefox && npm run build:chrome",
+    "build:firefox": "web-ext build -s extension -a dist --overwrite-dest --filename t3-capture-firefox-{version}.xpi",
+    "build:chrome": "node scripts/build-chrome.mjs",
     "test": "node --test test/format.test.js",
     "test:live": "node test/live-t3.mjs",
     "test:dom": "node test/content-dom.mjs",
-    "run:zen": "web-ext run -s extension --firefox=/Applications/Zen.app/Contents/MacOS/zen"
+    "test:chrome": "node test/chrome-e2e.mjs",
+    "test:firefox": "node test/firefox-e2e.mjs",
+    "run:zen": "web-ext run -s extension --firefox=/Applications/Zen.app/Contents/MacOS/zen",
+    "icons": "node scripts/render-icons.mjs"
   },
   "devDependencies": {
     "playwright": "^1.65.0",

@@ -176,6 +176,65 @@
     return originalSend.apply(this, arguments);
   };
 
+  // ---- componentes React/Vue ----
+  // El content script aislado no ve las propiedades que la página agrega a
+  // los nodos (fibers de React, instancias de Vue). Dispara `t3capture:probe`
+  // sobre el elemento y respondemos en el acto con `t3capture:probe-result`:
+  // dispatchEvent es síncrono, así que el pedido y la respuesta ocurren dentro
+  // de la misma llamada.
+  const frameworkInfo = (el) => {
+    const info = {};
+    const keys = Object.keys(el);
+    const fiberKey = keys.find((k) => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
+    if (fiberKey) {
+      const components = [];
+      let fiber = el[fiberKey];
+      let source = null;
+      let guard = 0;
+      while (fiber && guard++ < 60 && components.length < 8) {
+        const type = fiber.type;
+        if (type && typeof type !== "string") {
+          const name = type.displayName || type.name || type.render?.displayName || type.render?.name;
+          if (name && !/^(Anonymous|_c\d*)$/.test(name)) components.push(String(name));
+        }
+        if (!source && fiber._debugSource) {
+          const s = fiber._debugSource;
+          source = `${String(s.fileName)}:${Number(s.lineNumber)}${s.columnNumber ? `:${Number(s.columnNumber)}` : ""}`;
+        }
+        fiber = fiber.return;
+      }
+      if (components.length) info.react = { components, source };
+    }
+    let vue = el.__vueParentComponent;
+    if (vue) {
+      const components = [];
+      let guard = 0;
+      while (vue && guard++ < 30 && components.length < 8) {
+        const name = vue.type?.name || vue.type?.__name;
+        const file = vue.type?.__file;
+        if (name || file) components.push(String(name || String(file).split("/").pop()));
+        vue = vue.parent;
+      }
+      const file = el.__vueParentComponent?.type?.__file;
+      if (components.length) info.vue = { components, file: file ? String(file) : null };
+    }
+    return Object.keys(info).length ? info : null;
+  };
+
+  document.addEventListener(
+    "t3capture:probe",
+    (event) => {
+      let result = null;
+      try {
+        if (event.target instanceof Element) result = frameworkInfo(event.target);
+      } catch {
+        /* sin acceso */
+      }
+      document.dispatchEvent(new CustomEvent("t3capture:probe-result", { detail: JSON.stringify(result) }));
+    },
+    true,
+  );
+
   // ---- navegación SPA ----
   for (const fn of ["pushState", "replaceState"]) {
     const original = history[fn];

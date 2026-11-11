@@ -179,50 +179,22 @@
   }
 
   // ---------- frameworks ----------
-  // En Firefox, `wrappedJSObject` da acceso a las propiedades que la página
-  // agregó al nodo (fibers de React, instancias de Vue…).
+  // Los fibers de React y las instancias de Vue viven en el mundo de la
+  // página, que este script aislado no ve. Se los pedimos a recorder-main.js
+  // con un evento síncrono (ver "componentes React/Vue" allá).
+  let probeResult;
+  document.addEventListener("t3capture:probe-result", (event) => {
+    probeResult = event.detail;
+  });
+
   function frameworkInfo(el) {
-    const info = {};
+    probeResult = undefined;
     try {
-      const page = el.wrappedJSObject || el;
-      const keys = Object.keys(page);
-      const fiberKey = keys.find((k) => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
-      if (fiberKey) {
-        const components = [];
-        let fiber = page[fiberKey];
-        let source = null;
-        let guard = 0;
-        while (fiber && guard++ < 60 && components.length < 8) {
-          const type = fiber.type;
-          if (type && typeof type !== "string") {
-            const name = type.displayName || type.name || type.render?.displayName || type.render?.name;
-            if (name && !/^(Anonymous|_c\d*)$/.test(name)) components.push(String(name));
-          }
-          if (!source && fiber._debugSource) {
-            const s = fiber._debugSource;
-            source = `${String(s.fileName)}:${Number(s.lineNumber)}${s.columnNumber ? `:${Number(s.columnNumber)}` : ""}`;
-          }
-          fiber = fiber.return;
-        }
-        if (components.length) info.react = { components, source };
-      }
-      let vue = page.__vueParentComponent;
-      if (vue) {
-        const components = [];
-        let guard = 0;
-        while (vue && guard++ < 30 && components.length < 8) {
-          const name = vue.type?.name || vue.type?.__name;
-          const file = vue.type?.__file;
-          if (name || file) components.push(String(name || file.split("/").pop()));
-          vue = vue.parent;
-        }
-        const file = page.__vueParentComponent?.type?.__file;
-        if (components.length) info.vue = { components, file: file ? String(file) : null };
-      }
+      el.dispatchEvent(new CustomEvent("t3capture:probe"));
+      return typeof probeResult === "string" ? JSON.parse(probeResult) : null;
     } catch {
-      /* sin acceso */
+      return null;
     }
-    return Object.keys(info).length ? info : null;
   }
 
   // ---------- campos sensibles ----------
@@ -245,6 +217,18 @@
     if (!captureInputValues) return `[${String(el.value ?? "").length} caracteres]`;
     return clip(el.value, 120);
   }
+
+  // ---------- click derecho ----------
+  // Firefox resuelve el elemento del menú contextual con
+  // menus.getTargetElement(). En Chrome no existe: guardamos el último.
+  let lastContextTarget = null;
+  window.addEventListener(
+    "contextmenu",
+    (e) => {
+      if (!isOwnNode(e.target)) lastContextTarget = e.target instanceof Element ? e.target : e.target?.parentElement || null;
+    },
+    true,
+  );
 
   // ---------- grabación de interacciones ----------
   const isOwnNode = (node) => node instanceof Element && (node.tagName?.toLowerCase() === HOST_TAG || node.closest?.(HOST_TAG));
@@ -682,14 +666,28 @@
   }
 
   // ---------- flujo de captura ----------
-  async function runCapture({ mode, targetElementId }) {
+  function contextMenuTarget(targetElementId) {
+    let el = null;
+    if (targetElementId != null) {
+      try {
+        el = browser.menus?.getTargetElement?.(targetElementId) || null;
+      } catch {
+        el = null;
+      }
+    }
+    el ||= lastContextTarget;
+    return el?.isConnected ? el : null;
+  }
+
+  async function runCapture({ mode, targetElementId, fromContextMenu }) {
     let element = null;
     let rect = null;
 
     if (mode === "element") {
-      element = targetElementId != null ? browser.menus.getTargetElement(targetElementId) : await pickElement();
+      const direct = fromContextMenu ? contextMenuTarget(targetElementId) : null;
+      element = direct || (await pickElement());
       if (!element) return { cancelled: true };
-      if (targetElementId != null) element.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      if (direct) element.scrollIntoView?.({ block: "nearest", inline: "nearest" });
       await nextFrame();
       const r = element.getBoundingClientRect();
       rect = { x: r.x, y: r.y, width: r.width, height: r.height };
@@ -708,11 +706,19 @@
     return data;
   }
 
-  browser.runtime.onMessage.addListener((message) => {
-    if (message?.type === "t3capture:ping") return Promise.resolve({ ok: true });
-    if (message?.type === "t3capture:run") {
-      return runCapture(message).catch((error) => ({ error: String(error?.message || error) }));
+  // sendResponse + `return true`: funciona igual en Firefox y en Chrome
+  // (Chrome no acepta que el listener devuelva una promesa).
+  browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message?.type === "t3capture:ping") {
+      sendResponse({ ok: true });
+      return false;
     }
-    return undefined;
+    if (message?.type === "t3capture:run") {
+      runCapture(message)
+        .catch((error) => ({ error: String(error?.message || error) }))
+        .then(sendResponse);
+      return true;
+    }
+    return false;
   });
 })();
