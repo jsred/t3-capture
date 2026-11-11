@@ -78,6 +78,7 @@ await sw.evaluate(
   ([origin, token]) =>
     chrome.storage.local.set({
       servers: [{ id: "env-mock", origin, label: "Mac simulada", environmentId: "env-mock", token, expiresAt: Date.now() + 1e9, addedAt: Date.now() }],
+      systemPrompts: { default: "Respondé en español.", projects: { p1: { prompt: "Usá pnpm y corré los tests.", title: "Tienda", device: "Mac simulada" } } },
     }),
   [base, TOKEN],
 );
@@ -87,8 +88,13 @@ const settings = await context.newPage();
 await settings.goto(extUrl("options/options.html"));
 await settings.waitForSelector(".server .state.ok", { timeout: 15_000 });
 assert.equal(await settings.locator("#perm").isHidden(), true, "el permiso <all_urls> está concedido");
+assert.equal(await settings.inputValue("#sp-default"), "Respondé en español.");
+assert.equal(await settings.locator(".sp-project .sp-title").textContent(), "Tienda");
+assert.equal(await settings.inputValue(".sp-project .sp-text"), "Usá pnpm y corré los tests.");
+await settings.waitForFunction(() => document.getElementById("sp-project-select").options[0]?.textContent === "No hay más proyectos");
+await settings.locator("#system-prompts").screenshot({ path: path.join(root, "test/options-system-prompts.png") });
 assert.equal(mock.originRejected, 0, "ningún request a /mcp llegó con Origin");
-console.log("✓ ajustes: dispositivo conectado (MCP sin Origin desde la página de la extensión)");
+console.log("✓ ajustes: dispositivo conectado (MCP sin Origin desde la página de la extensión) e instrucciones del sistema");
 await settings.close();
 
 // ---------- página: eventos y selector ----------
@@ -136,7 +142,15 @@ for (const needle of ['button[data-testid="buy-button"]', "<BuyButton>", "src/Bu
 console.log("✓ contexto: selector, componentes React (puente al mundo de la página), consola, red, navegación, password oculto");
 
 await composer.fill("#user-text", "El botón de compra devuelve 500, arreglalo");
+await composer.selectOption("#project", "__scratch__");
+assert.equal(await composer.textContent("#sp-source"), "· default");
+assert.equal(await composer.inputValue("#system-prompt"), "Respondé en español.");
 await composer.selectOption("#project", "p1");
+assert.equal(await composer.textContent("#sp-source"), "· del proyecto «Tienda»");
+assert.equal(await composer.inputValue("#system-prompt"), "Usá pnpm y corré los tests.");
+await composer.click("#sp-details summary");
+await composer.locator("#sp-details").evaluate((d) => d.closest("section").scrollIntoView());
+await composer.screenshot({ path: path.join(root, "test/composer-system-prompt.png") });
 await composer.selectOption('#model-options select[data-option-id="effort"]', '"xhigh"');
 await composer.selectOption("#runtime", "auto-accept-edits");
 await composer.click("#submit");
@@ -147,7 +161,10 @@ assert.equal(mock.launch.projectId, "p1");
 assert.deepEqual(mock.launch.modelSelection, { instanceId: "claudeAgent", model: "claude-sonnet-5-5", options: [{ id: "effort", value: "xhigh" }] });
 assert.equal(mock.launch.runtimeMode, "auto-accept-edits");
 assert.equal(mock.launch.attachments.length, 2);
-assert.ok(mock.launch.message.startsWith("El botón de compra devuelve 500"));
+assert.ok(
+  mock.launch.message.startsWith("<instrucciones_del_sistema>\nUsá pnpm y corré los tests.\n</instrucciones_del_sistema>\n\nEl botón de compra devuelve 500"),
+  "la instrucción del proyecto va al principio del mensaje",
+);
 assert.equal(mock.uploads.length, 2);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
 for (const u of mock.uploads) {
@@ -173,6 +190,17 @@ await composer2.waitForSelector("#el-descriptor");
 await composer2.waitForFunction(() => document.getElementById("el-descriptor").textContent.length > 0);
 assert.match(await composer2.textContent("#el-descriptor"), /^#email$/);
 console.log("✓ click derecho → elemento correcto sin selector interactivo");
+
+// Instrucción editada en el compositor y guardada como default.
+await composer2.click("#sp-details summary");
+await composer2.fill("#system-prompt", "Respondé en español y sé breve.");
+assert.equal(await composer2.textContent("#sp-source"), "· editada para este hilo");
+await composer2.click("#sp-save-default");
+await composer2.waitForFunction(() => document.getElementById("sp-saved").textContent.length > 0);
+const saved = await sw.evaluate(() => chrome.storage.local.get("systemPrompts"));
+assert.equal(saved.systemPrompts.default, "Respondé en español y sé breve.");
+assert.equal(saved.systemPrompts.projects.p1.prompt, "Usá pnpm y corré los tests.");
+console.log("✓ instrucciones: la del proyecto reemplaza a la default, se editan y guardan desde el compositor");
 await composer2.close();
 
 // ---------- captura visible ----------

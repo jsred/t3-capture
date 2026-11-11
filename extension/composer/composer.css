@@ -31,3 +31,7 @@ footer kbd { background: transparent; border-color: color-mix(in srgb, var(--acc
 dialog#lightbox { padding: 0; border: none; background: transparent; max-width: 96vw; max-height: 96vh; }
 dialog#lightbox::backdrop { background: rgba(0,0,0,.75); }
 dialog#lightbox img { max-width: 96vw; max-height: 94vh; display: block; border-radius: 8px; }
+
+.sp summary { cursor: pointer; padding: 2px 0; }
+.sp-body { margin-top: 8px; gap: 8px; }
+.sp textarea { min-height: 80px; }

@@ -128,11 +128,12 @@ function networkSection(list, ref, max) {
 
 /**
  * @param capture  captura guardada por el background
- * @param options  { userText, includeDom, includeInteractions, includeConsole, includeNetwork,
+ * @param options  { systemPrompt, userText, includeDom, includeInteractions, includeConsole, includeNetwork,
  *                   screenshotNames, maxEvents, maxConsole, maxNetwork }
  */
 export function buildPrompt(capture, options) {
   const {
+    systemPrompt = "",
     userText = "",
     includeDom = true,
     includeInteractions = true,
@@ -147,6 +148,8 @@ export function buildPrompt(capture, options) {
   const page = capture.page ?? {};
   const out = [];
 
+  // T3 no tiene system prompt al crear un hilo: va al principio del mensaje.
+  if (systemPrompt.trim()) out.push("<instrucciones_del_sistema>", systemPrompt.trim(), "</instrucciones_del_sistema>", "");
   out.push(userText.trim() || "_(Sin instrucciones adicionales: revisá el contexto capturado y proponé qué hacer.)_");
   out.push("", "---", "", "## Contexto capturado desde el navegador");
   out.push(`- **Captura:** ${MODE_LABEL[capture.mode] || capture.mode} · ${new Date(ref).toISOString()}`);

@@ -51,6 +51,24 @@
         </form>
       </section>
 
+      <section class="card stack" id="system-prompts">
+        <h3>Instrucciones del sistema</h3>
+        <p class="muted small">
+          Se agregan al principio del primer mensaje de cada hilo nuevo (T3 no tiene un campo de system prompt al crear
+          hilos). La de un proyecto reemplaza a la default. También se pueden editar y guardar desde el compositor.
+        </p>
+        <label class="field">
+          Default (para proyectos sin instrucción propia y Scratch)
+          <textarea id="sp-default" rows="4" placeholder="Ej: Respondé en español. Antes de terminar, corré los tests y mostrame el diff."></textarea>
+        </label>
+        <div id="sp-projects" class="stack"></div>
+        <div class="row wrap">
+          <select id="sp-project-select" class="grow"><option value="">Cargando proyectos…</option></select>
+          <button type="button" id="sp-add">Agregar instrucción para el proyecto</button>
+        </div>
+        <span id="sp-status" class="muted small"></span>
+      </section>
+
       <section class="card stack">
         <h3>Captura</h3>
         <label class="check"><input type="checkbox" id="set-inputs" /> Registrar el valor de los campos de texto (contraseñas y tarjetas siempre se ocultan)</label>
@@ -65,6 +83,16 @@
         </p>
       </section>
     </main>
+    <template id="sp-project-tpl">
+      <div class="stack sp-project">
+        <div class="row">
+          <strong class="grow sp-title"></strong>
+          <span class="muted small sp-device"></span>
+          <button type="button" class="danger sp-remove">Quitar</button>
+        </div>
+        <textarea rows="3" class="sp-text"></textarea>
+      </div>
+    </template>
     <template id="server-tpl">
       <div class="card row server">
         <div class="grow">

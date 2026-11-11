@@ -1,7 +1,16 @@
 import "../lib/browser-shim.js";
 import { McpClient, T3ToolError } from "../lib/t3client.js";
 import { deleteCapture, getCapture } from "../lib/db.js";
-import { getPrefs, getServers, getSettings, updatePrefs } from "../lib/store.js";
+import {
+  getPrefs,
+  getServers,
+  getSettings,
+  getSystemPrompts,
+  resolveSystemPrompt,
+  saveDefaultSystemPrompt,
+  saveProjectSystemPrompt,
+  updatePrefs,
+} from "../lib/store.js";
 import { autoTitle, buildPrompt, summarize } from "../lib/format.js";
 
 const $ = (id) => document.getElementById(id);
@@ -26,6 +35,8 @@ const state = {
   projects: [],
   loadSeq: 0,
   requestId: null,
+  systemPrompts: { default: "", projects: {} },
+  systemPromptEdited: false, // editada a mano para este hilo
 };
 
 const setStatus = (text, kind = "") => {
@@ -126,6 +137,7 @@ function shotFileName(shot, index) {
 function currentPrompt() {
   const st = state.settings;
   return buildPrompt(state.capture, {
+    systemPrompt: $("system-prompt").value,
     userText: $("user-text").value,
     includeDom: $("inc-dom").checked,
     includeInteractions: $("inc-interactions").checked,
@@ -248,6 +260,48 @@ function syncWorkspace() {
   $("workspace").value = remembered || (project?.defaultThreadEnvMode === "worktree" ? "worktree" : "root");
   $("baseref").value = state.prefs.baseRefByProject?.[projectId] || "main";
   syncBaseRef();
+  syncSystemPrompt();
+}
+
+// ---------- instrucciones del sistema ----------
+function projectLabel() {
+  return $("project").selectedOptions[0]?.textContent || $("project").value;
+}
+
+function syncSystemPrompt() {
+  const projectId = $("project").value;
+  const scratch = !projectId || projectId === "__scratch__";
+  const resolved = resolveSystemPrompt(state.systemPrompts, scratch ? null : projectId);
+  // Si el usuario la editó para este hilo, no la pisamos al cambiar de proyecto.
+  if (!state.systemPromptEdited) $("system-prompt").value = resolved.text;
+  const source = state.systemPromptEdited
+    ? "· editada para este hilo"
+    : resolved.source === "project"
+      ? `· del proyecto «${projectLabel()}»`
+      : resolved.source === "default"
+        ? "· default"
+        : "· ninguna";
+  $("sp-source").textContent = source;
+  $("sp-save-project").disabled = scratch;
+  $("sp-save-project").textContent = scratch ? "Guardar para este proyecto" : `Guardar para «${projectLabel()}»`;
+  renderPreview();
+}
+
+async function saveSystemPrompt(target) {
+  const text = $("system-prompt").value;
+  if (target === "default") {
+    state.systemPrompts = await saveDefaultSystemPrompt(text);
+  } else {
+    state.systemPrompts = await saveProjectSystemPrompt($("project").value, {
+      prompt: text,
+      title: projectLabel(),
+      device: currentDevice()?.label ?? null,
+    });
+  }
+  state.systemPromptEdited = false;
+  syncSystemPrompt();
+  $("sp-saved").textContent = target === "default" ? "Guardada como default" : "Guardada para el proyecto";
+  setTimeout(() => ($("sp-saved").textContent = ""), 2500);
 }
 
 function syncBaseRef() {
@@ -444,6 +498,17 @@ for (const id of ["user-text", "inc-dom", "inc-interactions", "inc-console", "in
   $(id).addEventListener("input", renderPreview);
   $(id).addEventListener("change", renderPreview);
 }
+$("system-prompt").addEventListener("input", () => {
+  state.systemPromptEdited = true;
+  $("sp-source").textContent = "· editada para este hilo";
+  renderPreview();
+});
+$("sp-save-project").addEventListener("click", () => saveSystemPrompt("project"));
+$("sp-save-default").addEventListener("click", () => saveSystemPrompt("default"));
+$("sp-manage").addEventListener("click", (e) => {
+  e.preventDefault();
+  browser.runtime.openOptionsPage();
+});
 $("submit").addEventListener("click", createThread);
 document.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !$("submit").disabled) {
@@ -457,6 +522,8 @@ window.addEventListener("pagehide", () => state.capture?.shots.forEach((s) => UR
 // ---------- inicio ----------
 state.settings = await getSettings();
 state.prefs = await getPrefs();
+state.systemPrompts = await getSystemPrompts();
+syncSystemPrompt();
 await loadCapture();
 $("user-text").focus();
 await loadDevices();

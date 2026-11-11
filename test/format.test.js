@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { autoTitle, buildPrompt, summarize } from "../extension/lib/format.js";
+import { resolveSystemPrompt } from "../extension/lib/store.js";
 
 const now = 1_800_000_000_000;
 const capture = {
@@ -44,4 +45,18 @@ test("título automático y resumen", () => {
 test("no rompe bloques de código con ``` en el HTML", () => {
   const p = buildPrompt({ ...capture, mode: "element", element: { tag: "pre", selector: "pre", xpath: "/pre", outerHTML: "<pre>```js\nx\n```</pre>" } }, {});
   assert.match(p, /````html\n<pre>```js/);
+});
+
+test("instrucciones del sistema al principio del mensaje", () => {
+  const p = buildPrompt(capture, { systemPrompt: "  Respondé en español.\nCorré los tests.  ", userText: "Arreglá esto" });
+  assert.ok(p.startsWith("<instrucciones_del_sistema>\nRespondé en español.\nCorré los tests.\n</instrucciones_del_sistema>\n\nArreglá esto"));
+  assert.doesNotMatch(buildPrompt(capture, { systemPrompt: "   ", userText: "x" }), /instrucciones_del_sistema/);
+});
+
+test("la instrucción del proyecto reemplaza a la default", () => {
+  const sp = { default: "General", projects: { p1: { prompt: "Del proyecto" }, p2: { prompt: "  " } } };
+  assert.deepEqual(resolveSystemPrompt(sp, "p1"), { text: "Del proyecto", source: "project" });
+  assert.deepEqual(resolveSystemPrompt(sp, "p2"), { text: "General", source: "default" });
+  assert.deepEqual(resolveSystemPrompt(sp, "__scratch__"), { text: "General", source: "default" });
+  assert.deepEqual(resolveSystemPrompt({ default: "", projects: {} }, "p1"), { text: "", source: null });
 });

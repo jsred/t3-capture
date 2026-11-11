@@ -63,6 +63,19 @@
           <label class="field" id="baseref-field">Rama base del worktree <input type="text" id="baseref" placeholder="main" /></label>
           <label class="field span2">Título <input type="text" id="title" placeholder="Automático" /></label>
         </div>
+        <details id="sp-details" class="sp">
+          <summary class="small">Instrucciones del sistema <span id="sp-source" class="muted"></span></summary>
+          <div class="stack sp-body">
+            <textarea id="system-prompt" rows="4" placeholder="Ej: Respondé en español. Antes de terminar, corré los tests y mostrame el diff."></textarea>
+            <div class="row wrap small">
+              <button type="button" id="sp-save-project">Guardar para este proyecto</button>
+              <button type="button" id="sp-save-default">Guardar como default</button>
+              <span id="sp-saved" class="muted grow"></span>
+              <a href="#" id="sp-manage">Administrar en ajustes</a>
+            </div>
+            <p class="muted small">Van al principio del primer mensaje del hilo. La del proyecto reemplaza a la default. Los cambios sin guardar valen solo para este hilo.</p>
+          </div>
+        </details>
       </section>
 
       <section class="card stack">

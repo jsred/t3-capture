@@ -48,3 +48,41 @@ export async function updateSettings(patch) {
   await browser.storage.local.set({ settings });
   return settings;
 }
+
+// ---------- instrucciones del sistema ----------
+// T3 no tiene un campo de system prompt al crear un hilo: estas instrucciones
+// van al principio del primer mensaje. La del proyecto reemplaza a la default.
+// { default: string, projects: { [projectId]: { prompt, title, device } } }
+
+export async function getSystemPrompts() {
+  const { systemPrompts = {} } = await browser.storage.local.get("systemPrompts");
+  return { default: systemPrompts.default ?? "", projects: systemPrompts.projects ?? {} };
+}
+
+async function setSystemPrompts(systemPrompts) {
+  await browser.storage.local.set({ systemPrompts });
+  return systemPrompts;
+}
+
+export async function saveDefaultSystemPrompt(prompt) {
+  const sp = await getSystemPrompts();
+  return setSystemPrompts({ ...sp, default: prompt.trim() });
+}
+
+/** Guarda la instrucción de un proyecto. Con `prompt` vacío la borra. */
+export async function saveProjectSystemPrompt(projectId, { prompt, title, device }) {
+  const sp = await getSystemPrompts();
+  const projects = { ...sp.projects };
+  if (prompt === null || prompt === undefined) delete projects[projectId];
+  else projects[projectId] = { prompt: prompt.trim(), title: title ?? projects[projectId]?.title ?? projectId, device: device ?? projects[projectId]?.device ?? null };
+  return setSystemPrompts({ ...sp, projects });
+}
+
+/** Qué instrucción corresponde a un proyecto: { text, source: "project" | "default" | null }. */
+export function resolveSystemPrompt(sp, projectId) {
+  const project = projectId ? sp.projects[projectId]?.prompt?.trim() : "";
+  if (project) return { text: project, source: "project" };
+  const fallback = sp.default?.trim();
+  if (fallback) return { text: fallback, source: "default" };
+  return { text: "", source: null };
+}

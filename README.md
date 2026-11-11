@@ -11,7 +11,7 @@ Extensión para **Zen y Firefox** (142 o posterior) y **Chrome** (120 o posterio
 - **Contexto del DOM:** selector único, XPath, rol y nombre accesible, HTML, estilos computados, ancestros, estado del campo y componentes **React/Vue** con el archivo fuente cuando la app corre en modo dev.
 - **Eventos recientes:** clicks, inputs, teclas, scroll, navegación SPA, consola (logs, warnings, errores no capturados) y requests fetch/XHR con estado y duración.
 
-Antes de crear el hilo elegís el **dispositivo** (la máquina con T3), el **proyecto** (o Scratch), si va en la carpeta del proyecto o en un **worktree** nuevo, el **modelo** con su **reasoning effort** (y otras opciones como fast mode o service tier), los **permisos** y si arranca en **modo plan**. Recuerda tus últimas elecciones.
+Antes de crear el hilo elegís el **dispositivo** (la máquina con T3), el **proyecto** (o Scratch), si va en la carpeta del proyecto o en un **worktree** nuevo, el **modelo** con su **reasoning effort** (y otras opciones como fast mode o service tier), los **permisos** y si arranca en **modo plan**. Recuerda tus últimas elecciones. También podés sumar **instrucciones del sistema** default o por proyecto.
 
 ## Cómo habla con T3
 
@@ -72,6 +72,17 @@ npm run build        # dist/t3-capture-firefox-<versión>.xpi, dist/chrome/ y di
 También podés usar **Aprobar en T3 (ventana)**: abre la pantalla de aprobación OAuth del propio T3.
 
 Para otras máquinas (un VPS por Tailscale, otra Mac), emparejá cada una por separado. Si tenés activados los entornos vinculados en T3, esas máquinas también aparecen como dispositivos a través de la principal.
+
+## Instrucciones del sistema
+
+Podés definir instrucciones que se agregan a cada hilo nuevo, por ejemplo “Respondé en español” o “Usá pnpm y corré los tests antes de terminar”:
+
+- **Default:** se usa en Scratch y en los proyectos sin instrucción propia.
+- **Por proyecto:** reemplaza a la default en ese proyecto.
+
+Se configuran en los ajustes de la extensión, o desde el compositor (*Destino → Instrucciones del sistema*) con *Guardar para «proyecto»* o *Guardar como default*. Si las editás en el compositor sin guardar, el cambio vale solo para ese hilo.
+
+`t3_thread_launch` no tiene un campo de system prompt. Por eso van al principio del primer mensaje, dentro de `<instrucciones_del_sistema>…</instrucciones_del_sistema>`, y se ven en *Ver el mensaje que se va a enviar*.
 
 ## Uso
 
