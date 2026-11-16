@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <title>Nuevo hilo de T3</title>
+    <title>Enviar captura a T3</title>
     <link rel="stylesheet" href="../lib/ui.css" />
     <link rel="stylesheet" href="composer.css" />
   </head>
@@ -51,8 +51,30 @@
       <section class="card stack">
         <h2>Destino</h2>
         <div class="grid">
+          <label class="field span2">Enviar a
+            <select id="destination">
+              <option value="new">Nuevo hilo</option>
+              <option value="existing">Hilo existente</option>
+            </select>
+          </label>
           <label class="field">Dispositivo <select id="device"></select></label>
           <label class="field">Proyecto <select id="project" disabled></select></label>
+        </div>
+        <div id="existing-fields" class="stack hidden">
+          <label class="field">Buscar hilo por título
+            <input type="text" id="thread-search" placeholder="Escribí para buscar…" />
+          </label>
+          <label class="field">Hilo
+            <select id="thread" disabled aria-describedby="thread-status"></select>
+          </label>
+          <div id="thread-status" class="small muted" role="status"></div>
+          <div class="row">
+            <button type="button" id="threads-refresh">Actualizar</button>
+            <button type="button" id="threads-more" class="hidden">Cargar más hilos</button>
+          </div>
+          <p class="small muted">Se envía un mensaje con la captura y el contexto. Se mantienen el modelo, los permisos y el workspace del hilo.</p>
+        </div>
+        <div id="new-fields" class="grid">
           <label class="field" id="workspace-field">
             Workspace
             <select id="workspace">
@@ -78,7 +100,7 @@
         </details>
       </section>
 
-      <section class="card stack">
+      <section id="model-section" class="card stack">
         <h2>Modelo</h2>
         <div class="grid">
           <label class="field span2">
@@ -99,13 +121,13 @@
     </main>
 
     <footer class="row">
-      <div id="status" class="grow small muted"></div>
+      <div id="status" class="grow small muted" role="status"></div>
       <button id="submit" class="primary" disabled>Crear hilo <kbd>⌘↵</kbd></button>
     </footer>
 
     <section id="done" class="hidden stack done">
       <div class="big">✓</div>
-      <h1>Hilo creado</h1>
+      <h1 id="done-title">Hilo creado</h1>
       <p class="muted" id="done-detail"></p>
       <div class="row center">
         <a id="done-link" class="btn primary" target="_blank" rel="noopener">Abrir en T3</a>

@@ -23,6 +23,11 @@ const RUNTIME_LABEL = {
   "full-access": "Acceso total",
 };
 const ALL_RUNTIME_MODES = Object.keys(RUNTIME_LABEL);
+const THREAD_STATUS_LABEL = {
+  idle: "Sin actividad", preparing: "Preparando", queued: "En cola", starting: "Iniciando",
+  running: "En curso", waiting: "Esperando respuesta", completed: "Completado",
+  interrupted: "Interrumpido", failed: "Con error", cancelled: "Cancelado", rolled_back: "Revertido",
+};
 
 const state = {
   capture: null,
@@ -34,6 +39,13 @@ const state = {
   providers: [], // capacidades del dispositivo elegido
   projects: [],
   loadSeq: 0,
+  deviceReady: false,
+  threads: [],
+  threadCursor: null,
+  threadLoadSeq: 0,
+  threadsLoading: false,
+  threadSearchTimer: null,
+  sending: false,
   requestId: null,
   systemPrompts: { default: "", projects: {} },
   systemPromptEdited: false, // editada a mano para este hilo
@@ -53,6 +65,14 @@ const clientFor = (serverId) => {
 };
 
 const currentDevice = () => state.devices.find((d) => d.key === $("device").value);
+const existingDestination = () => $("destination").value === "existing";
+const currentThread = () => state.threads.find((t) => t.threadId === $("thread").value);
+
+function syncSubmit() {
+  $("submit").disabled = state.sending || !state.deviceReady || (existingDestination()
+    ? !!currentDevice()?.environmentId || state.threadsLoading || !currentThread()
+    : !findModel($("model").value));
+}
 
 // ---------- captura ----------
 async function loadCapture() {
@@ -137,7 +157,7 @@ function shotFileName(shot, index) {
 function currentPrompt() {
   const st = state.settings;
   return buildPrompt(state.capture, {
-    systemPrompt: $("system-prompt").value,
+    systemPrompt: existingDestination() ? "" : $("system-prompt").value,
     userText: $("user-text").value,
     includeDom: $("inc-dom").checked,
     includeInteractions: $("inc-interactions").checked,
@@ -158,7 +178,7 @@ function renderPreview() {
 async function loadDevices() {
   state.servers = await getServers();
   if (!state.servers.length) {
-    setStatus("Conectá T3 en Ajustes para poder crear hilos.", "error");
+    setStatus("Conectá T3 en Ajustes para poder enviar capturas.", "error");
     const a = document.createElement("a");
     a.href = "#";
     a.textContent = " Abrir ajustes";
@@ -211,22 +231,25 @@ async function loadDevices() {
 
 async function loadDeviceData() {
   const device = currentDevice();
-  if (!device?.reachable) return;
   const seq = ++state.loadSeq;
+  state.deviceReady = false;
+  resetThreads();
   $("project").disabled = true;
   $("model").disabled = true;
-  $("submit").disabled = true;
+  syncSubmit();
+  if (!device?.reachable) return;
   setStatus(`Cargando proyectos y modelos de ${device.label}…`);
   try {
     const client = clientFor(device.serverId);
-    const [projects, caps] = await Promise.all([client.projects(device.environmentId), client.capabilities(device.environmentId)]);
+    const [projects, caps] = await Promise.allSettled([client.projects(device.environmentId), client.capabilities(device.environmentId)]);
     if (seq !== state.loadSeq) return;
-    state.projects = projects;
-    state.providers = usableProviders(caps.providers);
+    if (projects.status === "rejected") throw projects.reason;
+    state.projects = projects.value;
+    state.providers = caps.status === "fulfilled" ? usableProviders(caps.value.providers) : [];
+    state.deviceReady = true;
     renderProjects();
     renderModels();
-    setStatus("");
-    $("submit").disabled = false;
+    syncDestination();
   } catch (error) {
     if (seq !== state.loadSeq) return;
     console.error(error);
@@ -244,11 +267,101 @@ function renderProjects() {
     option.title = p.workspaceRoot;
     select.append(option);
   }
-  select.append(new Option("Scratch (carpeta nueva, sin proyecto)", "__scratch__"));
+  select.append(existingDestination()
+    ? new Option("Todos los proyectos (incluye Scratch)", "__all__")
+    : new Option("Scratch (carpeta nueva, sin proyecto)", "__scratch__"));
   const remembered = state.prefs.projectByDevice?.[$("device").value];
   select.value = remembered && [...select.options].some((o) => o.value === remembered) ? remembered : select.options[0].value;
-  select.disabled = false;
+  select.disabled = !state.deviceReady;
   syncWorkspace();
+}
+
+// ---------- destino e hilos existentes ----------
+function resetThreads() {
+  clearTimeout(state.threadSearchTimer);
+  state.threadLoadSeq++;
+  state.threads = [];
+  state.threadCursor = null;
+  state.threadsLoading = false;
+  $("thread").replaceChildren(new Option("Elegí un hilo…", ""));
+  $("thread").disabled = true;
+  $("threads-more").classList.add("hidden");
+}
+
+function syncDestination() {
+  const existing = existingDestination();
+  $("existing-fields").classList.toggle("hidden", !existing);
+  for (const id of ["new-fields", "sp-details", "model-section"]) $(id).classList.toggle("hidden", existing);
+  $("submit").replaceChildren(existing ? "Enviar al hilo " : "Crear hilo ");
+  const shortcut = document.createElement("kbd");
+  shortcut.textContent = "⌘↵";
+  $("submit").append(shortcut);
+  renderPreview();
+  if (existing) {
+    if (state.deviceReady) setStatus("");
+    loadThreads();
+  } else {
+    resetThreads();
+    if (state.deviceReady) {
+      const noModel = !findModel($("model").value);
+      setStatus(noModel ? "Este dispositivo no tiene proveedores de IA habilitados." : "", noModel ? "error" : "");
+    }
+  }
+  syncSubmit();
+}
+
+async function loadThreads(more = false) {
+  const device = currentDevice();
+  if (!more) resetThreads();
+  if (!existingDestination() || !state.deviceReady || !device?.reachable) return;
+  if (device.environmentId) {
+    $("thread-status").textContent = "Para enviar a un hilo existente, conectá esta máquina directamente desde Ajustes y elegí esa conexión en Dispositivo.";
+    $("threads-refresh").disabled = true;
+    syncSubmit();
+    return;
+  }
+  const seq = ++state.threadLoadSeq;
+  state.threadsLoading = true;
+  $("thread").disabled = true;
+  $("threads-refresh").disabled = true;
+  $("threads-more").disabled = true;
+  $("thread-status").textContent = "Cargando hilos…";
+  syncSubmit();
+  try {
+    const projectId = $("project").value;
+    const page = await clientFor(device.serverId).threads({
+      projectId: projectId === "__all__" ? undefined : projectId,
+      search: $("thread-search").value.trim(),
+      cursor: more ? state.threadCursor : 0,
+    });
+    if (seq !== state.threadLoadSeq) return;
+    const selected = $("thread").value;
+    const known = new Set(state.threads.map((t) => t.threadId));
+    state.threads.push(...(page.threads ?? []).filter((t) => !t.archived && !known.has(t.threadId)));
+    state.threadCursor = page.nextCursor ?? null;
+    $("thread").replaceChildren(new Option("Elegí un hilo…", ""));
+    for (const thread of state.threads) {
+      const project = state.projects.find((p) => p.id === thread.projectId);
+      const prefix = projectId === "__all__" && project ? `${project.title} · ` : "";
+      $("thread").append(new Option(`${prefix}${thread.title || "(sin título)"} · ${THREAD_STATUS_LABEL[thread.status] || thread.status}`, thread.threadId));
+    }
+    $("thread").value = selected;
+    $("thread-status").textContent = state.threads.length
+      ? `${state.threads.length} hilos. Elegí dónde enviar la captura.`
+      : "No hay hilos que coincidan. Probá otro proyecto o cambiá la búsqueda.";
+  } catch (error) {
+    if (seq !== state.threadLoadSeq) return;
+    $("thread-status").textContent = `No se pudieron cargar los hilos: ${error.message}`;
+  } finally {
+    if (seq === state.threadLoadSeq) {
+      state.threadsLoading = false;
+      $("thread").disabled = !state.threads.length;
+      $("threads-refresh").disabled = false;
+      $("threads-more").disabled = false;
+      $("threads-more").classList.toggle("hidden", state.threadCursor === null);
+      syncSubmit();
+    }
+  }
 }
 
 function syncWorkspace() {
@@ -340,6 +453,7 @@ function renderModels(selectKey) {
   select.value = wanted && findModel(wanted) ? wanted : select.options[0].value;
   select.disabled = false;
   renderModelOptions();
+  syncSubmit();
 }
 
 const encodeValue = (v) => JSON.stringify(v);
@@ -404,19 +518,25 @@ async function searchModels(query) {
   }
 }
 
-// ---------- crear hilo ----------
-async function createThread() {
+// ---------- enviar captura ----------
+async function submitCapture() {
+  if ($("submit").disabled || state.sending) return;
   const device = currentDevice();
+  const existing = existingDestination();
+  const thread = currentThread();
   const found = findModel($("model").value);
-  if (!device || !found) return;
+  if (!device || (existing ? !thread || device.environmentId : !found)) return;
   const userText = $("user-text").value;
   const projectId = $("project").value;
   const scratch = projectId === "__scratch__";
   const worktree = !scratch && $("workspace").value === "worktree";
   const baseRef = $("baseref").value.trim() || "main";
   const options = selectedOptions();
+  const message = currentPrompt();
 
-  $("submit").disabled = true;
+  state.sending = true;
+  $("app").inert = true;
+  syncSubmit();
   try {
     const client = clientFor(device.serverId);
     const shots = includedShots();
@@ -425,11 +545,16 @@ async function createThread() {
       setStatus(`Subiendo captura ${i + 1} de ${shots.length}…`);
       attachments.push(await client.uploadAttachment(shot.blob, shotFileName(shot, i)));
     }
-    setStatus("Creando el hilo…");
+    setStatus(existing ? "Enviando al hilo…" : "Creando el hilo…");
     state.requestId ??= `t3capture-${crypto.randomUUID()}`;
-    const input = {
+    const result = existing ? await client.sendToThread({
+      threadId: thread.threadId,
+      message,
+      attachments,
+      clientRequestId: state.requestId,
+    }) : await client.launchThread({
       title: $("title").value.trim() || autoTitle(state.capture, userText),
-      message: currentPrompt(),
+      message,
       modelSelection: { instanceId: found.provider.providerInstanceId, model: found.model.id, ...(options.length ? { options } : {}) },
       runtimeMode: $("runtime").value,
       interactionMode: $("plan").checked ? "plan" : "default",
@@ -438,36 +563,44 @@ async function createThread() {
       ...(device.environmentId ? { environmentId: device.environmentId } : {}),
       ...(scratch ? { scratch: true } : { projectId }),
       ...(worktree ? { workspaceStrategy: { type: "worktree", baseRef } } : {}),
-    };
-    const result = await client.launchThread(input);
+    });
 
     const key = $("model").value;
+    // El envío ya tuvo éxito: un error local no debe habilitar un envío duplicado.
     await updatePrefs({
       deviceKey: device.key,
-      modelKey: key,
-      runtimeMode: $("runtime").value,
       projectByDevice: { ...state.prefs.projectByDevice, [device.key]: projectId },
-      workspaceByProject: { ...state.prefs.workspaceByProject, [projectId]: $("workspace").value },
-      baseRefByProject: worktree ? { ...state.prefs.baseRefByProject, [projectId]: baseRef } : state.prefs.baseRefByProject,
-      optionsByModel: { ...state.prefs.optionsByModel, [key]: Object.fromEntries(options.map((o) => [o.id, o.value])) },
-    });
+      ...(!existing ? {
+        modelKey: key,
+        runtimeMode: $("runtime").value,
+        workspaceByProject: { ...state.prefs.workspaceByProject, [projectId]: $("workspace").value },
+        baseRefByProject: worktree ? { ...state.prefs.baseRefByProject, [projectId]: baseRef } : state.prefs.baseRefByProject,
+        optionsByModel: { ...state.prefs.optionsByModel, [key]: Object.fromEntries(options.map((o) => [o.id, o.value])) },
+      } : {}),
+    }).catch(console.error);
     await deleteCapture(state.capture.id).catch(() => {});
-    showDone(result, device, found);
+    showDone({ ...result, link: result?.link || (existing ? thread.link : null) }, device, existing ? thread : null, found);
   } catch (error) {
     console.error(error);
     // Error definitivo de T3: el próximo intento es una solicitud nueva.
     if (error instanceof T3ToolError) state.requestId = null;
-    setStatus(error.message || String(error), "error");
-    $("submit").disabled = false;
+    const uncertain = existing && !(error instanceof T3ToolError) && state.requestId;
+    setStatus(`${error.message || String(error)}${uncertain ? " Revisá el hilo antes de reintentar: no se pudo confirmar el envío." : ""}`, "error");
+    state.sending = false;
+    $("app").inert = false;
+    syncSubmit();
   }
 }
 
-function showDone(result, device, found) {
+function showDone(result, device, thread, found) {
   $("app").classList.add("hidden");
   document.querySelector("footer").classList.add("hidden");
   $("done").classList.remove("hidden");
   const projectLabel = $("project").selectedOptions[0]?.textContent;
-  $("done-detail").textContent = `${projectLabel} · ${device.label} · ${found.model.label || found.model.id}`;
+  $("done-title").textContent = thread ? "Captura enviada" : "Hilo creado";
+  $("done-detail").textContent = thread
+    ? `${thread.title} · ${device.label}`
+    : `${projectLabel} · ${device.label} · ${found.model.label || found.model.id}`;
   if (result?.link) {
     $("done-link").href = result.link;
     $("done-copy").addEventListener("click", async () => {
@@ -484,7 +617,29 @@ function showDone(result, device, found) {
 
 // ---------- eventos ----------
 $("device").addEventListener("change", loadDeviceData);
-$("project").addEventListener("change", syncWorkspace);
+$("destination").addEventListener("change", () => {
+  state.requestId = null;
+  const projectId = $("project").value;
+  renderProjects();
+  if ([...$("project").options].some((o) => o.value === projectId)) $("project").value = projectId;
+  syncWorkspace();
+  syncDestination();
+});
+$("project").addEventListener("change", () => {
+  syncWorkspace();
+  if (existingDestination()) loadThreads();
+});
+$("thread").addEventListener("change", () => {
+  state.requestId = null;
+  syncSubmit();
+});
+$("thread-search").addEventListener("input", () => {
+  resetThreads();
+  syncSubmit();
+  state.threadSearchTimer = setTimeout(() => loadThreads(), 250);
+});
+$("threads-refresh").addEventListener("click", () => loadThreads());
+$("threads-more").addEventListener("click", () => loadThreads(true));
 $("workspace").addEventListener("change", syncBaseRef);
 $("model").addEventListener("change", renderModelOptions);
 $("model-search").addEventListener("keydown", (e) => {
@@ -509,11 +664,11 @@ $("sp-manage").addEventListener("click", (e) => {
   e.preventDefault();
   browser.runtime.openOptionsPage();
 });
-$("submit").addEventListener("click", createThread);
+$("submit").addEventListener("click", submitCapture);
 document.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !$("submit").disabled) {
     e.preventDefault();
-    createThread();
+    submitCapture();
   }
 });
 $("lightbox").addEventListener("click", () => $("lightbox").close());

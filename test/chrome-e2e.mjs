@@ -201,6 +201,62 @@ const saved = await sw.evaluate(() => chrome.storage.local.get("systemPrompts"))
 assert.equal(saved.systemPrompts.default, "Respondé en español y sé breve.");
 assert.equal(saved.systemPrompts.projects.p1.prompt, "Usá pnpm y corré los tests.");
 console.log("✓ instrucciones: la del proyecto reemplaza a la default, se editan y guardan desde el compositor");
+
+// ---------- enviar a un hilo existente ----------
+await composer2.selectOption("#destination", "existing");
+await composer2.waitForFunction(() => !document.getElementById("thread").disabled);
+assert.equal(await composer2.locator("#new-fields").isHidden(), true);
+assert.equal(await composer2.locator("#sp-details").isHidden(), true);
+assert.equal(await composer2.locator("#model-section").isHidden(), true);
+assert.equal(await composer2.locator("#submit").isDisabled(), true, "requiere elegir el hilo explícitamente");
+assert.equal(await composer2.locator("#thread option").count(), 3, "placeholder y primera página");
+await composer2.click("#threads-more");
+await composer2.waitForFunction(() => document.getElementById("thread").options.length === 4);
+assert.equal(await composer2.locator("#threads-more").isHidden(), true);
+assert.equal(mock.threadQueries.at(-1).cursor, 2);
+
+await composer2.fill("#thread-search", "checkout");
+await composer2.waitForFunction(() => !document.getElementById("thread").disabled && document.getElementById("thread").options.length === 3);
+assert.equal(mock.threadQueries.at(-1).titleContains, "checkout");
+assert.equal(mock.threadQueries.at(-1).projectId, "p1");
+await composer2.selectOption("#thread", "existing-1");
+await composer2.fill("#user-text", "Te paso otra captura del checkout");
+await composer2.click("#preview-details summary");
+await composer2.waitForFunction(() => document.getElementById("preview").textContent.includes("Te paso otra captura"));
+assert.ok(!(await composer2.textContent("#preview")).includes("<instrucciones_del_sistema>"));
+await composer2.locator("#existing-fields").screenshot({ path: path.join(root, "test/composer-existing-thread.png") });
+
+// Los errores de listado permiten reintentar y nunca dejan habilitado el envío anterior.
+mock.threadListError = "Dispositivo no disponible";
+await composer2.click("#threads-refresh");
+await composer2.waitForFunction(() => document.getElementById("thread-status").textContent.includes("Dispositivo no disponible"));
+assert.equal(await composer2.locator("#submit").isDisabled(), true);
+mock.threadListError = null;
+await composer2.click("#threads-refresh");
+await composer2.waitForFunction(() => !document.getElementById("thread").disabled);
+await composer2.selectOption("#thread", "existing-1");
+
+// Un rechazo de T3 conserva la captura y permite corregir el destino.
+mock.sendError = "El hilo ya no existe";
+await composer2.click("#submit");
+await composer2.waitForFunction(() => document.getElementById("status").textContent.includes("El hilo ya no existe"));
+assert.equal(await composer2.locator("#submit").isEnabled(), true);
+assert.equal(mock.sends.length, 0);
+mock.sendError = null;
+const uploadsBeforeSend = mock.uploads.length;
+await composer2.click("#submit");
+await composer2.waitForSelector("#done:not(.hidden)");
+assert.equal(await composer2.textContent("#done-title"), "Captura enviada");
+assert.equal(mock.sends.length, 1);
+assert.equal(mock.sends[0].tool, "t3_thread_send_attachments");
+assert.equal(mock.sends[0].threadId, "existing-1");
+assert.equal(mock.sends[0].attachments.length, 2);
+assert.equal(mock.uploads.length, uploadsBeforeSend + 2);
+assert.ok(mock.sends[0].message.startsWith("Te paso otra captura del checkout"));
+assert.ok(!mock.sends[0].message.includes("<instrucciones_del_sistema>"));
+assert.equal(await composer2.getAttribute("#done-link", "href"), `${base}/thread/existing-1`, "usa el link del listado si el envío no devuelve link");
+assert.equal(mock.mcpCalls.filter((n) => n === "t3_thread_launch").length, 1, "no crea otro hilo");
+console.log("✓ hilo existente: búsqueda, paginación, reintentos y envío de 2 PNG al hilo elegido");
 await composer2.close();
 
 // ---------- captura visible ----------
@@ -210,7 +266,154 @@ await startCapture("visible");
 const composer3 = await composer3Opened;
 await composer3.waitForFunction(() => document.querySelectorAll("#shots img").length === 1);
 console.log("✓ captura visible");
+
+await composer3.waitForFunction(() => !document.getElementById("submit").disabled);
+await composer3.selectOption("#destination", "existing");
+await composer3.waitForFunction(() => !document.getElementById("thread").disabled);
+await composer3.fill("#thread-search", "no-existe");
+await composer3.waitForFunction(() => document.getElementById("thread-status").textContent.includes("No hay hilos"));
+assert.equal(await composer3.locator("#submit").isDisabled(), true);
+await composer3.selectOption("#project", "__all__");
+await composer3.fill("#thread-search", "Notas");
+await composer3.waitForFunction(() => !document.getElementById("thread").disabled);
+assert.equal(mock.threadQueries.at(-1).allProjects, true);
+await composer3.selectOption("#thread", "scratch-1");
+await composer3.selectOption("#destination", "new");
+assert.equal(await composer3.locator("#model-section").isVisible(), true);
+assert.equal(await composer3.inputValue("#system-prompt"), "Usá pnpm y corré los tests.");
+await composer3.selectOption("#destination", "existing");
+await composer3.selectOption("#project", "__all__");
+await composer3.waitForFunction(() => !document.getElementById("thread").disabled);
+await composer3.selectOption("#thread", "scratch-1");
+await composer3.locator("#shots input[type=checkbox]").uncheck();
+await composer3.fill("#user-text", "Solo el contexto, sin imagen");
+const uploadsBeforeText = mock.uploads.length;
+await composer3.locator("#user-text").press("Control+Enter");
+await composer3.waitForSelector("#done:not(.hidden)");
+assert.equal(mock.uploads.length, uploadsBeforeText);
+assert.equal(mock.sends[1].tool, "t3_thread_send");
+assert.equal(mock.sends[1].threadId, "scratch-1");
+assert.ok(mock.sends[1].clientRequestId);
+assert.ok(mock.sends[1].message.startsWith("Solo el contexto, sin imagen"));
+console.log("✓ hilo existente: estado vacío, todos los proyectos/Scratch y envío sin imagen con Ctrl+Enter");
 await composer3.close();
+
+// ---------- conexión directa y modelos independientes del hilo existente ----------
+mock.links = [{ environmentId: "env-linked", label: "VPS", status: "reachable" }];
+mock.providersDisabled = true;
+const composer4Opened = context.waitForEvent("page", { predicate: (p) => p.url().includes("composer.html"), timeout: 20_000 });
+await page.bringToFront();
+await startCapture("visible");
+const composer4 = await composer4Opened;
+await composer4.waitForFunction(() => !document.getElementById("project").disabled);
+assert.equal(await composer4.locator("#submit").isDisabled(), true, "sin modelos no puede crear hilos");
+await composer4.selectOption("#destination", "existing");
+await composer4.waitForFunction(() => !document.getElementById("thread").disabled);
+await composer4.selectOption("#thread", "existing-1");
+assert.equal(await composer4.locator("#submit").isEnabled(), true, "un hilo existente usa su propio modelo");
+await composer4.selectOption("#device", "env-mock|env-linked");
+await composer4.waitForFunction(() => document.getElementById("thread-status").textContent.includes("conectá esta máquina directamente"));
+assert.equal(await composer4.locator("#submit").isDisabled(), true, "no envía adjuntos locales a un entorno vinculado");
+await composer4.selectOption("#device", "env-mock|");
+await composer4.waitForFunction(() => !document.getElementById("thread").disabled);
+assert.equal(await composer4.inputValue("#thread"), "", "cambiar de dispositivo borra el hilo elegido");
+assert.equal(await composer4.locator("#submit").isDisabled(), true);
+
+// Una respuesta lenta de una búsqueda anterior no reemplaza el destino actual.
+let releaseSlowList, slowListStarted;
+const slowListGate = new Promise((resolve) => { releaseSlowList = resolve; });
+const slowListObserved = new Promise((resolve) => { slowListStarted = resolve; });
+mock.beforeToolCall = async (name, args) => {
+  if (name === "t3_thread_list" && args.titleContains === "checkout") {
+    slowListStarted();
+    await slowListGate;
+  }
+};
+await composer4.fill("#thread-search", "checkout");
+await slowListObserved;
+await composer4.fill("#thread-search", "Notas");
+await composer4.waitForFunction(() => document.querySelector('#thread option[value="scratch-1"]'));
+await composer4.selectOption("#thread", "scratch-1");
+const slowListResponse = composer4.waitForResponse((r) => {
+  const request = r.request();
+  const body = request.postDataJSON();
+  return body?.params?.name === "t3_thread_list" && body.params.arguments.titleContains === "checkout";
+});
+releaseSlowList();
+await (await slowListResponse).finished();
+await composer4.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+assert.equal(await composer4.inputValue("#thread"), "scratch-1");
+assert.equal(await composer4.locator("#thread option").count(), 2);
+
+// Doble envío durante una subida y fallo local después de un envío exitoso.
+let releaseUpload, uploadStarted;
+const uploadGate = new Promise((resolve) => { releaseUpload = resolve; });
+const uploadObserved = new Promise((resolve) => { uploadStarted = resolve; });
+mock.beforeToolCall = async (name) => {
+  if (name === "t3_attachment_prepare_upload") {
+    uploadStarted();
+    await uploadGate;
+  }
+};
+await composer4.evaluate(() => {
+  const original = chrome.storage.local.set.bind(chrome.storage.local);
+  chrome.storage.local.set = (items) => "prefs" in items ? Promise.reject(new Error("Disco lleno (prueba)")) : original(items);
+});
+const sendsBeforeDouble = mock.sends.length;
+await composer4.click("#submit");
+await uploadObserved;
+await composer4.evaluate(() => {
+  document.getElementById("submit").click();
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true }));
+});
+assert.equal(await composer4.locator("#submit").isDisabled(), true);
+releaseUpload();
+await composer4.waitForSelector("#done:not(.hidden)");
+assert.equal(mock.sends.length, sendsBeforeDouble + 1, "un solo envío aunque se intente dos veces");
+assert.equal(await composer4.textContent("#done-title"), "Captura enviada", "fallar al guardar preferencias no revierte el éxito remoto");
+await composer4.close();
+mock.beforeToolCall = null;
+mock.links = [];
+mock.providersDisabled = false;
+console.log("✓ conexión directa, respuesta antigua descartada, doble envío bloqueado y éxito con fallo local de preferencias");
+
+const composer5Opened = context.waitForEvent("page", { predicate: (p) => p.url().includes("composer.html"), timeout: 20_000 });
+await page.bringToFront();
+await startCapture("visible");
+const composer5 = await composer5Opened;
+await composer5.waitForFunction(() => !document.getElementById("submit").disabled);
+await composer5.selectOption("#destination", "existing");
+await composer5.waitForFunction(() => !document.getElementById("thread").disabled);
+await composer5.selectOption("#thread", "existing-1");
+mock.truncateNextSendResponse = true;
+const sendsBeforeLostResponse = mock.sends.length;
+await composer5.click("#submit");
+await composer5.waitForFunction(() => document.getElementById("status").textContent.includes("no se pudo confirmar el envío"));
+assert.equal(mock.sends.length, sendsBeforeLostResponse + 1);
+assert.equal(await composer5.locator("#done").isHidden(), true);
+assert.ok(await composer5.evaluate(async () => {
+  const { getCapture } = await import(chrome.runtime.getURL("lib/db.js"));
+  return !!(await getCapture(new URLSearchParams(location.search).get("id")));
+}), "conserva la captura cuando no puede confirmar el resultado");
+await composer5.close();
+console.log("✓ respuesta de envío perdida: no reintenta automáticamente y conserva la captura con aviso");
+
+// Regresión: cambiar de destino no borra el error de conexión ni habilita proyectos viejos.
+mock.projectListError = "T3 no pudo cargar los proyectos";
+const composer6Opened = context.waitForEvent("page", { predicate: (p) => p.url().includes("composer.html"), timeout: 20_000 });
+await page.bringToFront();
+await startCapture("visible");
+const composer6 = await composer6Opened;
+await composer6.waitForFunction(() => document.getElementById("status").textContent.includes("T3 no pudo cargar los proyectos"));
+for (const destination of ["existing", "new"]) {
+  await composer6.selectOption("#destination", destination);
+  assert.ok((await composer6.textContent("#status")).includes("T3 no pudo cargar los proyectos"));
+  assert.equal(await composer6.locator("#project").isDisabled(), true);
+  assert.equal(await composer6.locator("#submit").isDisabled(), true);
+}
+await composer6.close();
+mock.projectListError = null;
+console.log("✓ error de carga de dispositivo conservado al cambiar de destino");
 
 // ---------- T3 real (opcional) ----------
 if (liveCode) {

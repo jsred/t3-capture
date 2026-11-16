@@ -23,14 +23,28 @@ export const PAGE = `<!doctype html><html><head><title>Tienda demo</title></head
 export const TOKEN = "test-token";
 
 export async function startMockT3({ label = "Mac simulada" } = {}) {
-  const mock = { originRejected: 0, mcpCalls: [], uploads: [], launch: null };
+  const mock = {
+    originRejected: 0, mcpCalls: [], uploads: [], launch: null, sends: [], threadQueries: [],
+    links: [], threadListError: null, projectListError: null, sendError: null, providersDisabled: false,
+    beforeToolCall: null, truncateNextSendResponse: false,
+    threads: [
+      { threadId: "existing-1", projectId: "p1", title: "Arreglar checkout", status: "running" },
+      { threadId: "existing-2", projectId: "p1", title: "Revisar estilos", status: "completed" },
+      { threadId: "existing-3", projectId: "p1", title: "Checkout mobile", status: "idle" },
+      { threadId: "scratch-1", projectId: "scratch", title: "Notas sueltas", status: "idle" },
+    ],
+  };
   let base;
   const tool = (result) => ({ content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: result, isError: false });
   const TOOLS = {
     t3_environment_read: () => ({ environmentId: "env-mock", label }),
-    t3_project_list: () => ({ projects: [{ id: "p1", title: "Tienda", workspaceRoot: "/tmp/tienda", updatedAt: "2026-11-10T00:00:00Z" }], nextCursor: null }),
+    t3_environment_links: () => ({ links: mock.links }),
+    t3_project_list: () => {
+      if (mock.projectListError) throw new Error(mock.projectListError);
+      return { projects: [{ id: "p1", title: "Tienda", workspaceRoot: "/tmp/tienda", updatedAt: "2026-11-10T00:00:00Z" }], nextCursor: null };
+    },
     orchestrator_capabilities: () => ({
-      providers: [
+      providers: mock.providersDisabled ? [] : [
         {
           providerInstanceId: "claudeAgent",
           displayName: "Claude",
@@ -46,6 +60,28 @@ export async function startMockT3({ label = "Mac simulada" } = {}) {
     t3_thread_launch: (args) => {
       mock.launch = args;
       return { threadId: "t1", link: `${base}/thread/t1`, status: "preparing" };
+    },
+    t3_thread_list: (args) => {
+      mock.threadQueries.push(args);
+      if (mock.threadListError) throw new Error(mock.threadListError);
+      const threads = mock.threads.filter((t) => (args.allProjects || t.projectId === args.projectId)
+        && (!args.titleContains || t.title.toLowerCase().includes(args.titleContains.toLowerCase())));
+      const cursor = args.cursor || 0;
+      const end = cursor + 2;
+      return {
+        threads: threads.slice(cursor, end).map((t) => ({ ...t, link: `${base}/thread/${t.threadId}` })),
+        nextCursor: end < threads.length ? end : null,
+      };
+    },
+    t3_thread_send_attachments: (args) => {
+      if (mock.sendError) throw new Error(mock.sendError);
+      mock.sends.push({ tool: "t3_thread_send_attachments", ...args });
+      return { threadId: args.threadId, messageId: "m1", runId: "r1", status: "queued" };
+    },
+    t3_thread_send: (args) => {
+      if (mock.sendError) throw new Error(mock.sendError);
+      mock.sends.push({ tool: "t3_thread_send", ...args });
+      return { threadId: args.threadId, link: `${base}/thread/${args.threadId}`, messageId: "m2", runId: "r2", status: "preparing" };
     },
   };
 
@@ -79,7 +115,17 @@ export async function startMockT3({ label = "Mac simulada" } = {}) {
       else if (msg.method === "tools/list") result = { tools: Object.keys(TOOLS).map((name) => ({ name, inputSchema: { type: "object" } })) };
       else if (msg.method === "tools/call") {
         mock.mcpCalls.push(msg.params.name);
-        result = tool(TOOLS[msg.params.name](msg.params.arguments));
+        try {
+          await mock.beforeToolCall?.(msg.params.name, msg.params.arguments);
+          result = tool(TOOLS[msg.params.name](msg.params.arguments));
+          if (mock.truncateNextSendResponse && /^t3_thread_send/.test(msg.params.name)) {
+            mock.truncateNextSendResponse = false;
+            res.writeHead(200, { "content-type": "application/json" });
+            return res.end('{"jsonrpc":');
+          }
+        } catch (error) {
+          result = { content: [{ type: "text", text: error.message }], isError: true };
+        }
       }
       res.writeHead(200, { "content-type": "application/json", "mcp-session-id": "s1" });
       return res.end(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }));

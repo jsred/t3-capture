@@ -1,9 +1,9 @@
 # Política de privacidad de T3 Capture
 
-_Última actualización: 11 de noviembre de 2026_
+_Última actualización: 16 de noviembre de 2026_
 
 T3 Capture es una extensión de código abierto (MIT) para Zen, Firefox y Chrome
-que crea hilos de [T3 Code](https://t3.codes) con contexto de la página que
+que envía capturas a hilos nuevos o existentes de [T3 Code](https://t3.codes) con contexto de la página que
 estás viendo. Esta política describe qué datos usa y adónde van.
 
 ## Resumen
@@ -11,7 +11,7 @@ estás viendo. Esta política describe qué datos usa y adónde van.
 - La extensión **no tiene servidores propios** y el autor **no recibe ningún
   dato**. No hay analíticas, telemetría ni publicidad.
 - Los datos de una captura solo salen del navegador cuando vos tocás **Crear
-  hilo**, y van únicamente al servidor de T3 Code que emparejaste (tu
+  hilo** o **Enviar al hilo**, y van únicamente al servidor de T3 Code que emparejaste (tu
   computadora u otro dispositivo tuyo).
 
 ## Qué datos se usan
@@ -41,10 +41,12 @@ red).
 
 ## Adónde van los datos
 
-Al tocar **Crear hilo**, el mensaje y las capturas se envían al servidor de
+Al tocar **Crear hilo** o **Enviar al hilo**, el mensaje y las capturas se envían al servidor de
 T3 Code que elegiste, con el token que obtuviste al emparejar la extensión.
-T3 Code crea el hilo y se lo pasa al agente y modelo que elegiste (por
-ejemplo Claude o Codex). A partir de ahí rigen las políticas de T3 Code y del
+T3 Code crea el hilo o agrega el mensaje al hilo existente que elegiste y
+se lo pasa a su agente y modelo (por ejemplo Claude o Codex). La lista de
+hilos se consulta únicamente al elegir un hilo existente y se muestra en
+el compositor; no se guarda en el almacenamiento local. A partir de ahí rigen las políticas de T3 Code y del
 proveedor del modelo.
 
 ## Qué se guarda en el navegador
@@ -54,7 +56,7 @@ En el almacenamiento local de la extensión (`storage.local` e IndexedDB):
 - los dispositivos emparejados y sus tokens de acceso;
 - tus preferencias (último proyecto, modelo y opciones);
 - las instrucciones del sistema default y por proyecto;
-- las capturas pendientes. Se borran al crear el hilo, y las que quedan sin
+- las capturas pendientes. Se borran al enviarlas a T3, y las que quedan sin
   usar se borran al iniciar el navegador si tienen más de 24 horas.
 
 Esos datos no se sincronizan ni se comparten. Se borran al desinstalar la

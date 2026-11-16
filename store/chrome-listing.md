@@ -16,7 +16,7 @@ Textos para pegar en el panel de desarrollador
 
 **Resumen** (sale del manifest, máx. 132 caracteres):
 
-> Seleccioná un elemento o sacá una captura y creá un hilo de T3 Code con contexto del DOM y eventos.
+> Seleccioná un elemento o sacá una captura y enviala a un hilo nuevo o existente de T3 Code con contexto del DOM y eventos.
 
 **Descripción:**
 
@@ -26,11 +26,12 @@ T3 Capture convierte un bug que ves en el navegador en un hilo de T3 Code con to
 • Elegí un elemento (click derecho, atajo o botón de la barra), seleccioná un área o capturá la parte visible de la página.
 • El hilo recibe las capturas, el selector, el HTML, los componentes de React o Vue con su archivo, y los últimos errores de consola, requests, navegación e interacciones. Las contraseñas y tarjetas siempre se ocultan.
 • Antes de crear el hilo elegís dispositivo, proyecto, workspace, modelo, reasoning effort y permisos.
+• Continuá un hilo existente: elegí dispositivo y proyecto, buscá por título y enviá la captura con su contexto. Conserva el modelo, los permisos y el workspace del hilo. Requiere conexión directa a su dispositivo.
 • Instrucciones del sistema opcionales, una default y una por proyecto, que van al principio de cada hilo nuevo.
 
 Necesita T3 Code abierto en tu computadora u otro dispositivo tuyo. Se empareja desde los ajustes de la extensión con `t3 pair`.
 
-La extensión no tiene servidores propios y no le manda nada al autor. Las capturas solo salen del navegador cuando tocás «Crear hilo», y van únicamente al servidor de T3 Code que emparejaste.
+La extensión no tiene servidores propios y no le manda nada al autor. Las capturas solo salen del navegador cuando tocás «Crear hilo» o «Enviar al hilo», y van únicamente al servidor de T3 Code que emparejaste.
 
 Código abierto (MIT): https://github.com/jsred/t3-capture
 ```
@@ -51,7 +52,7 @@ Código abierto (MIT): https://github.com/jsred/t3-capture
 **Propósito único:**
 
 ```
-Crear hilos de T3 Code a partir de la página que el usuario está viendo: el usuario elige un elemento, un área o la parte visible, y la extensión arma un mensaje con capturas y contexto técnico (DOM, consola, red, interacciones) que envía al servidor de T3 Code del usuario.
+Enviar capturas y contexto a hilos nuevos o existentes de T3 Code a partir de la página que el usuario está viendo: el usuario elige un elemento, un área o la parte visible, y la extensión arma un mensaje con capturas y contexto técnico (DOM, consola, red, interacciones) que envía al servidor de T3 Code del usuario.
 ```
 
 **Justificación de permisos:**

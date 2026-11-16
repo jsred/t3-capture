@@ -224,6 +224,28 @@ try {
   const descriptor = await waitInExtension("composer/", (_w, doc) => doc.getElementById("el-descriptor").textContent, "elemento del click derecho");
   assert.equal(descriptor, "#email");
   console.log("✓ click derecho → elemento correcto");
+  await waitInExtension("composer/", (_w, doc) => !doc.getElementById("submit").disabled, "compositor listo");
+  await inExtension("composer/", (win, doc) => {
+    doc.getElementById("destination").value = "existing";
+    doc.getElementById("destination").dispatchEvent(new win.Event("change", { bubbles: true }));
+  });
+  await waitInExtension("composer/", (_w, doc) => !doc.getElementById("thread").disabled, "hilos existentes");
+  assert.equal(await inExtension("composer/", (_w, doc) => doc.getElementById("submit").disabled), true);
+  await inExtension("composer/", (win, doc) => {
+    doc.getElementById("thread").value = "existing-1";
+    doc.getElementById("thread").dispatchEvent(new win.Event("change", { bubbles: true }));
+    doc.getElementById("user-text").value = "Otra captura para este hilo";
+    doc.getElementById("submit").click();
+  });
+  await waitInExtension("composer/", (_w, doc) => !doc.getElementById("done").classList.contains("hidden"), "captura enviada");
+  assert.equal(mock.sends.length, 1);
+  assert.equal(mock.sends[0].threadId, "existing-1");
+  assert.equal(mock.sends[0].attachments.length, 2);
+  assert.ok(mock.sends[0].message.startsWith("Otra captura para este hilo"));
+  assert.equal(mock.mcpCalls.filter((n) => n === "t3_thread_launch").length, 1);
+  assert.equal(await inExtension("composer/", (_w, doc) => doc.getElementById("done-title").textContent), "Captura enviada");
+  assert.equal(await inExtension("composer/", (_w, doc) => doc.getElementById("done-link").href), `${base}/thread/existing-1`);
+  console.log("✓ hilo existente: captura y contexto enviados al hilo elegido sin crear otro");
   await closeExtensionWindow("composer/");
 
   console.log("\nOK");
