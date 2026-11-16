@@ -5,13 +5,15 @@
 
 > Proyecto comunitario, no oficial. No está afiliado a T3 Code.
 
-Extensión para **Zen y Firefox** (142 o posterior) y **Chrome** (120 o posterior, también Brave, Arc, Edge y otros basados en Chromium): seleccionás un elemento, un área o la parte visible de una página, le agregás contexto escrito y se crea un hilo en **T3 Code** con:
+Extensión para **Zen y Firefox** (142 o posterior) y **Chrome** (120 o posterior, también Brave, Arc, Edge y otros basados en Chromium): seleccionás un elemento, un área o la parte visible de una página, le agregás contexto escrito y lo enviás a un hilo nuevo o existente en **T3 Code** con:
 
 - **Capturas de pantalla:** el elemento recortado, más la página con el elemento marcado.
 - **Contexto del DOM:** selector único, XPath, rol y nombre accesible, HTML, estilos computados, ancestros, estado del campo y componentes **React/Vue** con el archivo fuente cuando la app corre en modo dev.
 - **Eventos recientes:** clicks, inputs, teclas, scroll, navegación SPA, consola (logs, warnings, errores no capturados) y requests fetch/XHR con estado y duración.
 
 Antes de crear el hilo elegís el **dispositivo** (la máquina con T3), el **proyecto** (o Scratch), si va en la carpeta del proyecto o en un **worktree** nuevo, el **modelo** con su **reasoning effort** (y otras opciones como fast mode o service tier), los **permisos** y si arranca en **modo plan**. Recuerda tus últimas elecciones. También podés sumar **instrucciones del sistema** default o por proyecto.
+
+Para continuar una conversación, elegí **Destino → Enviar a → Hilo existente**. Seleccioná el dispositivo y el proyecto, buscá el hilo por título y apretá **Enviar al hilo**. Podés cargar más resultados o elegir *Todos los proyectos (incluye Scratch)*. La captura y el contexto se agregan como un mensaje; se mantienen el modelo, los permisos y el workspace del hilo, y no se vuelven a agregar las instrucciones del sistema del compositor. Este envío requiere una conexión directa con la máquina del hilo: si aparece “vía …”, conectala por separado desde Ajustes.
 
 ## Cómo habla con T3
 
@@ -25,6 +27,8 @@ T3 Code expone un servidor MCP estándar en `http://<host>:3773/mcp` con OAuth (
 | Proveedores, modelos y opciones (effort…) | `orchestrator_capabilities` |
 | Subir capturas | `t3_attachment_prepare_upload` y un POST a `/api/attachments/upload/…` |
 | Crear el hilo | `t3_thread_launch` |
+| Buscar hilos existentes | `t3_thread_list` |
+| Enviar a un hilo existente | `t3_thread_send_attachments` (o `t3_thread_send` si desmarcás las imágenes) |
 
 Cada token dura 30 días. Las sesiones aparecen en T3 → Settings → Connections, y desde ahí se pueden revocar.
 
@@ -92,7 +96,7 @@ Se configuran en los ajustes de la extensión, o desde el compositor (*Destino �
 | Seleccionar un área | Popup, <kbd>Alt+Shift+A</kbd> o menú contextual |
 | Captura visible | Popup, <kbd>Alt+Shift+S</kbd> o menú contextual |
 | En el selector | <kbd>↑</kbd> padre · <kbd>↓</kbd> hijo · <kbd>Enter</kbd> confirmar · <kbd>Esc</kbd> cancelar |
-| Crear el hilo | <kbd>⌘ Enter</kbd> en el compositor |
+| Crear el hilo o enviar al hilo elegido | <kbd>⌘ Enter</kbd> / <kbd>Ctrl Enter</kbd> en el compositor |
 
 Los atajos se cambian desde *Cambiar atajos* en los ajustes de la extensión (en Zen/Firefox abre `about:addons`; en Chrome, `chrome://extensions/shortcuts`).
 
@@ -100,7 +104,7 @@ Los atajos se cambian desde *Cambiar atajos* en los ajustes de la extensión (en
 
 - Todo queda entre el navegador y tu T3; no hay servicios externos. Detalle completo en [PRIVACY.md](PRIVACY.md).
 - Los campos de contraseña, tarjeta, tokens y similares siempre se registran como `[oculto]`. Podés desactivar el registro de valores de inputs en los ajustes.
-- Los eventos viven solo en la memoria de cada pestaña (máximo 200 interacciones, 150 líneas de consola y 150 requests) y se pierden al recargar. Las capturas se guardan en IndexedDB hasta crear el hilo (o 24 horas como máximo).
+- Los eventos viven solo en la memoria de cada pestaña (máximo 200 interacciones, 150 líneas de consola y 150 requests) y se pierden al recargar. Las capturas se guardan en IndexedDB hasta enviarlas a T3 (o 24 horas como máximo).
 - Antes de enviar podés ver el mensaje exacto (*Ver el mensaje que se va a enviar*) y apagar cada sección.
 
 ## Limitaciones
@@ -153,6 +157,8 @@ Issues y PRs bienvenidos.
 - `npm run test:live -- <código de t3 pair>` prueba el cliente contra un T3 real. Crea una sesión en T3 que después podés revocar en Settings → Connections.
 
 ## Publicar una versión
+
+Los cambios de cada versión se resumen en [CHANGELOG.md](CHANGELOG.md).
 
 1. Subí `version` en `extension/manifest.json` y en `package.json`, y creá el tag `vX.Y.Z`. El workflow *Release* adjunta el `.xpi` y el `.zip` de Chrome a la release de GitHub.
 2. **addons.mozilla.org:** `WEB_EXT_API_KEY=… WEB_EXT_API_SECRET=… npm run publish:firefox`. Las claves se generan en <https://addons.mozilla.org/developers/addon/api/key/>. La ficha sale de `store/amo-metadata.json` (solo se usa entera en la primera versión).

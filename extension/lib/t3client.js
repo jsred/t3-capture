@@ -339,7 +339,24 @@ export class McpClient {
     return this.call("orchestrator_capabilities", args);
   }
 
-  /** Sube un Blob y devuelve el descriptor de adjunto que espera `t3_thread_launch`. */
+  threads({ projectId, search, cursor = 0 } = {}) {
+    return this.call("t3_thread_list", {
+      limit: 100,
+      cursor,
+      includeSubagents: false,
+      ...(projectId ? { projectId } : { allProjects: true }),
+      ...(search ? { titleContains: search } : {}),
+    });
+  }
+
+  sendToThread({ threadId, message, attachments, clientRequestId }) {
+    if (attachments.length) {
+      return this.call("t3_thread_send_attachments", { threadId, message, attachments });
+    }
+    return this.call("t3_thread_send", { threadId, message, clientRequestId });
+  }
+
+  /** Sube un Blob y devuelve el descriptor para crear un hilo o enviar adjuntos. */
   async uploadAttachment(blob, name) {
     const mimeType = blob.type || "application/octet-stream";
     const type = mimeType.startsWith("image/") ? "image" : "file";
