@@ -1,5 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-  <rect x="4" y="4" width="88" height="88" rx="22" fill="#111"/>
-  <path d="M26 30h-4v-8h12v4h-8zM70 30h4v-8H62v4h8zM26 66h-4v8h12v-4h-8zM70 66h4v8H62v-4h8z" fill="#8b8bff"/>
-  <text x="48" y="58" text-anchor="middle" font-family="ui-sans-serif,system-ui,-apple-system,Helvetica,Arial" font-weight="800" font-size="30" fill="#fff">T3</text>
+  <rect x="4" y="4" width="88" height="88" rx="22" fill="#0f172a"/>
+  <rect x="20" y="30" width="46" height="46" rx="5" fill="none" stroke="#a5b4fc" stroke-width="5" stroke-linecap="round" stroke-dasharray="7 6"/>
+  <g stroke="#a5b4fc" stroke-width="5" stroke-linecap="round">
+    <path d="M43 41v6M43 59v6M32 53h6M48 53h6"/>
+  </g>
+  <circle cx="43" cy="53" r="3.5" fill="#a5b4fc"/>
+  <g stroke="#8b5cf6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M60 36L76 20M63 20h13v13"/>
+  </g>
 </svg>
