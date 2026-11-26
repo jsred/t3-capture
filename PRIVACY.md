@@ -1,18 +1,15 @@
 # Política de privacidad de T3 Capture
 
-_Última actualización: 16 de noviembre de 2026_
+_Última actualización: 25 de noviembre de 2026_
 
 T3 Capture es una extensión de código abierto (MIT) para Zen, Firefox y Chrome
-que envía capturas a hilos nuevos o existentes de [T3 Code](https://t3.codes) con contexto de la página que
-estás viendo. Esta política describe qué datos usa y adónde van.
+que envía capturas y contexto de la página a hilos de T3 Code o a tickets de Trello y Notion. Esta política describe qué datos usa y adónde van.
 
 ## Resumen
 
 - La extensión **no tiene servidores propios** y el autor **no recibe ningún
   dato**. No hay analíticas, telemetría ni publicidad.
-- Los datos de una captura solo salen del navegador cuando vos tocás **Crear
-  hilo** o **Enviar al hilo**, y van únicamente al servidor de T3 Code que emparejaste (tu
-  computadora u otro dispositivo tuyo).
+- Los datos de una captura solo salen del navegador cuando tocás **Crear hilo**, **Enviar al hilo**, **Crear ticket** o reintentás un adjunto. Se envían al servicio que elegiste.
 
 ## Qué datos se usan
 
@@ -49,18 +46,20 @@ hilos se consulta únicamente al elegir un hilo existente y se muestra en
 el compositor; no se guarda en el almacenamiento local. A partir de ahí rigen las políticas de T3 Code y del
 proveedor del modelo.
 
+Al tocar **Crear ticket**, el título, la descripción, el contexto y las imágenes seleccionadas se envían directamente a la API de Trello o Notion. Trello guarda una tarjeta en la lista que elegiste. Notion guarda una página en la base de datos que elegiste. Al configurar las integraciones y elegir el destino, la extensión usa tus credenciales para comprobar la conexión y consultar tableros, listas o bases de datos. Los tickets quedan sujetos a los permisos del destino que elegiste y a las políticas de cada servicio. [Privacidad de Atlassian](https://www.atlassian.com/legal/privacy-policy) · [Privacidad de Notion](https://www.notion.com/privacy)
+
 ## Qué se guarda en el navegador
 
 En el almacenamiento local de la extensión (`storage.local` e IndexedDB):
 
 - los dispositivos emparejados y sus tokens de acceso;
+- la clave de API y el token de Trello y el token de Notion, si conectaste esos servicios;
 - tus preferencias (último proyecto, modelo y opciones);
 - las instrucciones del sistema default y por proyecto;
-- las capturas pendientes. Se borran al enviarlas a T3, y las que quedan sin
-  usar se borran al iniciar el navegador si tienen más de 24 horas.
+- las capturas pendientes. Se borran al confirmar el envío. Si una tarjeta de Trello tiene adjuntos pendientes, se guardan la captura y la referencia a la tarjeta para poder reintentar. Al iniciar el navegador, se borran las capturas pendientes de más de 24 horas.
 
 Esos datos no se sincronizan ni se comparten. Se borran al desinstalar la
-extensión. Podés quitar un dispositivo (y su token) desde los ajustes.
+extensión. Podés quitar un dispositivo o desconectar Trello o Notion desde los ajustes para borrar sus credenciales locales. Podés revocar los tokens desde el servicio que los emitió.
 
 ## Permisos
 
@@ -69,7 +68,7 @@ extensión. Podés quitar un dispositivo (y su token) desde los ajustes.
   seleccionar elementos en cualquier sitio.
 - **Pestañas** y **captura de la pestaña activa**: para la captura de
   pantalla y la URL y el título de la página.
-- **Menús contextuales**: para el click derecho «Crear hilo de T3…».
+- **Menús contextuales**: para iniciar capturas con el click derecho.
 - **Almacenamiento**: para lo descrito en la sección anterior.
 - **Notificaciones**: para avisar si una captura falla.
 - **Identidad**: para el flujo de aprobación de T3 (OAuth) al emparejar.

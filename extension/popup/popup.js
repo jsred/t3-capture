@@ -1,5 +1,7 @@
 import "../lib/browser-shim.js";
-import { getServers } from "../lib/store.js";
+import { pendingTrelloCaptures } from "../lib/db.js";
+import { openComposer } from "../lib/platform.js";
+import { getServers, getTicketConnection } from "../lib/store.js";
 
 const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
 
@@ -18,7 +20,21 @@ const openSettings = (e) => {
 document.getElementById("settings").addEventListener("click", openSettings);
 document.getElementById("connect").addEventListener("click", openSettings);
 
-if ((await getServers()).length === 0) document.getElementById("no-server").classList.remove("hidden");
+const [servers, trello, notion] = await Promise.all([getServers(), getTicketConnection("trello"), getTicketConnection("notion")]);
+if (!servers.length && !trello && !notion) document.getElementById("no-server").classList.remove("hidden");
+
+const pending = await pendingTrelloCaptures().catch(() => []);
+for (const { id, detail } of pending) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.textContent = detail;
+  button.addEventListener("click", async () => {
+    await openComposer(id);
+    window.close();
+  });
+  document.getElementById("pending-trello-list").append(button);
+}
+document.getElementById("pending-trello").classList.toggle("hidden", !pending.length);
 
 const commands = await browser.commands.getAll();
 for (const kbd of document.querySelectorAll("kbd[data-command]")) {

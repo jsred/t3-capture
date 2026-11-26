@@ -27,6 +27,17 @@ export async function removeServer(id) {
   await browser.storage.local.set({ servers });
 }
 
+export async function getTicketConnection(provider) {
+  const key = `${provider}Connection`;
+  return (await browser.storage.local.get(key))[key];
+}
+
+export async function saveTicketConnection(provider, credentials) {
+  const key = `${provider}Connection`;
+  if (credentials) await browser.storage.local.set({ [key]: credentials });
+  else await browser.storage.local.remove(key);
+}
+
 export async function getPrefs() {
   const { prefs = {} } = await browser.storage.local.get("prefs");
   return prefs;

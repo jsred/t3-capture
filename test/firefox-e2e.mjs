@@ -248,6 +248,50 @@ try {
   console.log("✓ hilo existente: captura y contexto enviados al hilo elegido sin crear otro");
   await closeExtensionWindow("composer/");
 
+  // Los hosts de los proveedores no son configurables en la extensión.
+  // El mock reemplaza fetch en el compositor temporal, no en el .xpi.
+  await inExtension("options/", async (win) => {
+    await win.browser.storage.local.remove("servers");
+    await win.browser.storage.local.set(win.JSON.parse('{"trelloConnection":{"apiKey":"test","token":"test"}}'));
+  });
+  await wd("POST", `${S}/window`, { handle: pageHandle });
+  await startCapture("visible");
+  await waitInExtension("composer/", (_win, doc) => !!doc.querySelector("#shots img"), "captura para Trello");
+  await inExtension("composer/", (win, doc) => {
+    const originalFetch = win.fetch.bind(win);
+    Cu.exportFunction((input, options) => {
+      const url = new URL(input);
+      if (url.hostname !== "api.trello.com") return originalFetch(input, options);
+      let body;
+      if (url.pathname === "/1/members/me/boards") body = [{ id: "board", name: "Producto" }];
+      if (url.pathname === "/1/boards/board/lists") body = [{ id: "list", name: "Por hacer" }];
+      if (url.pathname === "/1/cards") body = { id: "card", shortUrl: "https://trello.com/c/firefox-test" };
+      if (url.pathname === "/1/cards/card/attachments") body = { id: "attachment" };
+      return win.Promise.resolve(new win.Response(JSON.stringify(body)));
+    }, win, { defineAs: "fetch" });
+    const destination = doc.getElementById("destination");
+    destination.value = "trello";
+    destination.dispatchEvent(new win.Event("change", { bubbles: true }));
+  });
+  await waitInExtension("composer/", (_win, doc) => !doc.getElementById("trello-board").disabled, "tablero de Trello");
+  await inExtension("composer/", (win, doc) => {
+    const board = doc.getElementById("trello-board");
+    board.value = "board";
+    board.dispatchEvent(new win.Event("change", { bubbles: true }));
+  });
+  await waitInExtension("composer/", (_win, doc) => !doc.getElementById("trello-list").disabled, "lista de Trello");
+  await inExtension("composer/", (win, doc) => {
+    const list = doc.getElementById("trello-list");
+    list.value = "list";
+    list.dispatchEvent(new win.Event("change", { bubbles: true }));
+    doc.getElementById("submit").click();
+  });
+  await waitInExtension("composer/", (_win, doc) => !doc.getElementById("done").classList.contains("hidden"), "ticket de Trello");
+  assert.equal(await inExtension("composer/", (_win, doc) => doc.getElementById("done-link").href), "https://trello.com/c/firefox-test");
+  assert.equal(await inExtension("composer/", (_win, doc) => doc.getElementById("done-warning").classList.contains("hidden")), true);
+  await closeExtensionWindow("composer/");
+  console.log("✓ Firefox crea una tarjeta simulada con adjunto sin conectar T3");
+
   console.log("\nOK");
 } finally {
   await wd("DELETE", S).catch(() => {});

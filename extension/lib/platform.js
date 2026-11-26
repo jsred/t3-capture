@@ -12,6 +12,11 @@ export function extensionVersion() {
   }
 }
 
+export function openComposer(id) {
+  const url = browser.runtime.getURL(`composer/composer.html?id=${encodeURIComponent(id)}`);
+  return browser.windows.create({ url, type: "popup", width: 720, height: 920 });
+}
+
 // Abre la pantalla del navegador donde se cambian los atajos de la extensión.
 export async function openShortcutSettings() {
   if (IS_FIREFOX) {

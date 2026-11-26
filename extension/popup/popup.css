@@ -5,4 +5,7 @@ header { margin-bottom: 10px; }
 .actions .icon { width: 18px; text-align: center; font-size: 15px; color: var(--accent); }
 .actions kbd:empty { display: none; }
 .status { margin-bottom: 10px; }
+#pending-trello { margin-top: 10px; }
+#pending-trello-list { margin-top: 6px; max-height: 180px; overflow: auto; }
+#pending-trello-list button { overflow-wrap: anywhere; }
 .foot { margin: 10px 2px 0; }

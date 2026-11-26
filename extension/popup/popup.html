@@ -13,7 +13,7 @@
     </header>
 
     <div id="no-server" class="status hidden">
-      Todavía no conectaste T3 Code. <a href="#" id="connect">Conectar</a>
+      <a href="#" id="connect">Conectá T3, Trello o Notion</a> para enviar capturas.
     </div>
 
     <div class="actions">
@@ -33,7 +33,11 @@
         <kbd data-command="capture-visible"></kbd>
       </button>
     </div>
-    <p class="muted small foot">También con click derecho → “Crear hilo de T3…”.</p>
+    <details id="pending-trello" class="hidden">
+      <summary class="small">Adjuntos pendientes en Trello</summary>
+      <div id="pending-trello-list" class="actions"></div>
+    </details>
+    <p class="muted small foot">También con click derecho → “T3 Capture…”.</p>
     <script type="module" src="popup.js"></script>
   </body>
 </html>

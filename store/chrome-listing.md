@@ -16,22 +16,23 @@ Textos para pegar en el panel de desarrollador
 
 **Resumen** (sale del manifest, máx. 132 caracteres):
 
-> Seleccioná un elemento o sacá una captura y enviala a un hilo nuevo o existente de T3 Code con contexto del DOM y eventos.
+> Enviá capturas y contexto del navegador a T3 Code, o creá tickets en Trello y Notion.
 
 **Descripción:**
 
 ```
-T3 Capture convierte un bug que ves en el navegador en un hilo de T3 Code con todo lo que el agente necesita.
+T3 Capture te permite reportar un bug del navegador en un hilo de T3 Code, una tarjeta de Trello o una base de datos de Notion.
 
 • Elegí un elemento (click derecho, atajo o botón de la barra), seleccioná un área o capturá la parte visible de la página.
 • El hilo recibe las capturas, el selector, el HTML, los componentes de React o Vue con su archivo, y los últimos errores de consola, requests, navegación e interacciones. Las contraseñas y tarjetas siempre se ocultan.
 • Antes de crear el hilo elegís dispositivo, proyecto, workspace, modelo, reasoning effort y permisos.
 • Continuá un hilo existente: elegí dispositivo y proyecto, buscá por título y enviá la captura con su contexto. Conserva el modelo, los permisos y el workspace del hilo. Requiere conexión directa a su dispositivo.
 • Instrucciones del sistema opcionales, una default y una por proyecto, que van al principio de cada hilo nuevo.
+• Creá un ticket en una lista de Trello o una base de datos de Notion con las imágenes y el contexto que elijas. Conectá el servicio desde Ajustes.
 
-Necesita T3 Code abierto en tu computadora u otro dispositivo tuyo. Se empareja desde los ajustes de la extensión con `t3 pair`.
+Para enviar a un hilo, mantené abierto T3 Code en tu computadora u otro dispositivo tuyo y emparejalo desde Ajustes con `t3 pair`.
 
-La extensión no tiene servidores propios y no le manda nada al autor. Las capturas solo salen del navegador cuando tocás «Crear hilo» o «Enviar al hilo», y van únicamente al servidor de T3 Code que emparejaste.
+La extensión no tiene servidores propios y no le manda nada al autor. Las capturas se envían directamente al destino elegido cuando confirmás el envío.
 
 Código abierto (MIT): https://github.com/jsred/t3-capture
 ```
@@ -52,7 +53,7 @@ Código abierto (MIT): https://github.com/jsred/t3-capture
 **Propósito único:**
 
 ```
-Enviar capturas y contexto a hilos nuevos o existentes de T3 Code a partir de la página que el usuario está viendo: el usuario elige un elemento, un área o la parte visible, y la extensión arma un mensaje con capturas y contexto técnico (DOM, consola, red, interacciones) que envía al servidor de T3 Code del usuario.
+Enviar capturas y contexto técnico de la página que el usuario está viendo (DOM, consola, red e interacciones) al destino que elija para reportar un problema o solicitar un cambio. El destino puede ser un hilo de T3 Code, una tarjeta en una lista de Trello o una página en una base de datos de Notion.
 ```
 
 **Justificación de permisos:**
@@ -61,19 +62,20 @@ Enviar capturas y contexto a hilos nuevos o existentes de T3 Code a partir de la
 | --- | --- |
 | `activeTab` | Capturar la pestaña activa cuando el usuario inicia una captura desde el botón, un atajo o el menú contextual. |
 | `scripting` | Inyectar el selector de elementos en pestañas que ya estaban abiertas antes de instalar la extensión. |
-| `storage` | Guardar los dispositivos de T3 emparejados, las preferencias y las instrucciones del sistema. |
+| `storage` | Guardar las conexiones de T3, Trello y Notion, las preferencias y las instrucciones del sistema. |
 | `tabs` | Leer la URL y el título de la pestaña capturada y usar `captureVisibleTab` para la captura de pantalla. |
-| `contextMenus` | Agregar «Crear hilo de T3 con este elemento / un área / captura visible» al click derecho. |
+| `contextMenus` | Iniciar una captura de elemento, área o página visible con el click derecho. |
 | `identity` | Flujo de aprobación OAuth de T3 Code al emparejar la extensión (`launchWebAuthFlow`). |
 | `notifications` | Avisar al usuario si una captura falla. |
 | `declarativeNetRequestWithHostAccess` | Una sola regla, limitada a requests iniciados por la propia extensión hacia `/mcp` del servidor de T3 del usuario, que quita el header `Origin`. T3 rechaza con 403 los requests con un Origin de extensión. No lee ni modifica otros requests. |
-| Permiso de host `<all_urls>` | Los scripts de contenido registran consola, errores, red e interacciones desde que carga cada página, para que ese contexto esté disponible cuando el usuario decide capturar. También se usa para llegar al servidor de T3 del usuario, que puede estar en cualquier dirección (localhost, Tailscale, red local). |
+| Permiso de host `<all_urls>` | Los scripts de contenido registran consola, errores, red e interacciones desde que carga cada página. También permite conectarse al servidor de T3 del usuario y a las APIs de Trello y Notion. |
 | Código remoto | No. Todo el código está en el paquete. |
 
 **Uso de datos** (marcar):
 
 - [x] Contenido del sitio web (capturas, HTML, texto de la página)
 - [x] Actividad web (interacciones, requests de red, navegación)
+- [x] Información de autenticación (credenciales de conexión para el servicio que el usuario elige)
 - [x] Información de identificación personal: solo si el usuario escribe datos
   personales en un campo y está activado el registro de valores (se puede
   desactivar en los ajustes). Las contraseñas y tarjetas siempre se ocultan.

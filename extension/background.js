@@ -1,5 +1,6 @@
 import "./lib/browser-shim.js";
 import { putCapture, pruneCaptures } from "./lib/db.js";
+import { openComposer } from "./lib/platform.js";
 
 // Firefox: página de eventos (background.scripts). Chrome: service worker.
 const IS_SERVICE_WORKER = typeof ServiceWorkerGlobalScope !== "undefined" && self instanceof ServiceWorkerGlobalScope;
@@ -58,9 +59,9 @@ const MENU_CONTEXTS = ["page", "frame", "selection", "link", "editable", "image"
 
 browser.runtime.onInstalled.addListener(async ({ reason }) => {
   await menus.removeAll();
-  menus.create({ id: "t3-element", title: "Crear hilo de T3 con este elemento", contexts: MENU_CONTEXTS });
-  menus.create({ id: "t3-area", title: "Crear hilo de T3 con un área…", contexts: MENU_CONTEXTS });
-  menus.create({ id: "t3-visible", title: "Crear hilo de T3 con captura visible", contexts: MENU_CONTEXTS });
+  menus.create({ id: "t3-element", title: "T3 Capture: capturar este elemento", contexts: MENU_CONTEXTS });
+  menus.create({ id: "t3-area", title: "T3 Capture: seleccionar un área…", contexts: MENU_CONTEXTS });
+  menus.create({ id: "t3-visible", title: "T3 Capture: capturar la parte visible", contexts: MENU_CONTEXTS });
   if (reason === "install") browser.runtime.openOptionsPage();
 });
 
@@ -237,9 +238,4 @@ function highlight(bitmap, rect, scale) {
   ctx.setLineDash([lw * 3, lw * 1.5]);
   ctx.strokeRect(r.x * factor, r.y * factor, r.width * factor, r.height * factor);
   return encode(canvas);
-}
-
-async function openComposer(id) {
-  const url = browser.runtime.getURL(`composer/composer.html?id=${encodeURIComponent(id)}`);
-  await browser.windows.create({ url, type: "popup", width: 720, height: 920 });
 }
