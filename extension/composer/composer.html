@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <title>Enviar captura a T3</title>
+    <title>Enviar captura</title>
     <link rel="stylesheet" href="../lib/ui.css" />
     <link rel="stylesheet" href="composer.css" />
   </head>
@@ -33,7 +33,7 @@
 
       <section class="stack">
         <label class="field">
-          ¿Qué querés que haga el agente?
+          <span id="message-label">¿Qué querés que haga el agente?</span>
           <textarea id="user-text" placeholder="Ej: este botón no responde en mobile, arreglalo…" autofocus></textarea>
         </label>
         <div class="row wrap toggles">
@@ -43,22 +43,43 @@
           <label class="check"><input type="checkbox" id="inc-network" checked /> <span id="lbl-network">Red</span></label>
         </div>
         <details id="preview-details">
-          <summary class="small muted">Ver el mensaje que se va a enviar</summary>
+          <summary id="preview-label" class="small muted">Ver el mensaje que se va a enviar</summary>
           <pre id="preview"></pre>
+          <p id="preview-note" class="small muted hidden"></p>
         </details>
       </section>
 
       <section class="card stack">
         <h2>Destino</h2>
-        <div class="grid">
-          <label class="field span2">Enviar a
-            <select id="destination">
-              <option value="new">Nuevo hilo</option>
-              <option value="existing">Hilo existente</option>
+        <div class="stack">
+          <label class="field">Enviar a
+            <select id="destination" disabled>
+              <optgroup label="T3 Code">
+                <option value="new">Nuevo hilo</option>
+                <option value="existing">Hilo existente</option>
+              </optgroup>
+              <optgroup label="Tickets">
+                <option value="trello">Trello</option>
+                <option value="notion">Notion</option>
+              </optgroup>
             </select>
           </label>
+        </div>
+        <div id="t3-fields" class="grid">
           <label class="field">Dispositivo <select id="device"></select></label>
           <label class="field">Proyecto <select id="project" disabled></select></label>
+        </div>
+        <div id="ticket-fields" class="stack hidden">
+          <div id="trello-fields" class="grid hidden">
+            <label class="field">Tablero <select id="trello-board" disabled></select></label>
+            <label class="field">Lista <select id="trello-list" disabled></select></label>
+          </div>
+          <label id="notion-fields" class="field hidden">Base de datos <select id="notion-source" disabled></select></label>
+          <div class="row wrap small">
+            <span id="ticket-status" class="muted grow" role="status"></span>
+            <button type="button" id="tickets-refresh">Actualizar destinos</button>
+            <a href="#" id="ticket-settings">Abrir ajustes</a>
+          </div>
         </div>
         <div id="existing-fields" class="stack hidden">
           <label class="field">Buscar hilo por título
@@ -83,8 +104,8 @@
             </select>
           </label>
           <label class="field" id="baseref-field">Rama base del worktree <input type="text" id="baseref" placeholder="main" /></label>
-          <label class="field span2">Título <input type="text" id="title" placeholder="Automático" /></label>
         </div>
+        <label id="title-field" class="field">Título <input type="text" id="title" placeholder="Automático" /></label>
         <details id="sp-details" class="sp">
           <summary class="small">Instrucciones del sistema <span id="sp-source" class="muted"></span></summary>
           <div class="stack sp-body">
@@ -129,9 +150,11 @@
       <div class="big">✓</div>
       <h1 id="done-title">Hilo creado</h1>
       <p class="muted" id="done-detail"></p>
-      <div class="row center">
+      <p class="status error hidden" id="done-warning" role="status"></p>
+      <div class="row wrap center">
         <a id="done-link" class="btn primary" target="_blank" rel="noopener">Abrir en T3</a>
         <button id="done-copy">Copiar link</button>
+        <button id="done-retry" class="hidden">Reintentar adjuntos</button>
         <button id="done-close">Cerrar</button>
       </div>
     </section>

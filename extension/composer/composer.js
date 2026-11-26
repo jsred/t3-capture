@@ -1,17 +1,19 @@
 import "../lib/browser-shim.js";
 import { McpClient, T3ToolError } from "../lib/t3client.js";
-import { deleteCapture, getCapture } from "../lib/db.js";
+import { deleteCapture, getCapture, putCapture } from "../lib/db.js";
 import {
   getPrefs,
   getServers,
   getSettings,
   getSystemPrompts,
+  getTicketConnection,
   resolveSystemPrompt,
   saveDefaultSystemPrompt,
   saveProjectSystemPrompt,
   updatePrefs,
 } from "../lib/store.js";
-import { autoTitle, buildPrompt, summarize } from "../lib/format.js";
+import { autoTitle, buildPrompt, buildTicketDescription, summarize } from "../lib/format.js";
+import { NotionClient, prepareTrelloDescription, TICKET_LABELS, TrelloClient } from "../lib/tickets.js";
 
 const $ = (id) => document.getElementById(id);
 const MODE_LABEL = { element: "Elemento", area: "Área", visible: "Captura visible" };
@@ -45,16 +47,38 @@ const state = {
   threadLoadSeq: 0,
   threadsLoading: false,
   threadSearchTimer: null,
+  t3Status: [],
+  ticketLoadSeq: 0,
+  ticketClient: null,
+  ticketConnectionChanged: false,
+  notionSources: [],
   sending: false,
   requestId: null,
   systemPrompts: { default: "", projects: {} },
   systemPromptEdited: false, // editada a mano para este hilo
 };
 
-const setStatus = (text, kind = "") => {
+const setStatus = (text = "", kind = "", settingsLink = false) => {
   $("status").textContent = text;
   $("status").className = `grow small ${kind || "muted"}`;
+  if (settingsLink) {
+    const link = document.createElement("a");
+    link.href = "#";
+    link.textContent = " Abrir ajustes";
+    link.addEventListener("click", openSettings);
+    $("status").append(link);
+  }
 };
+
+function openSettings(event) {
+  event.preventDefault();
+  browser.runtime.openOptionsPage();
+}
+
+function setT3Status(...status) {
+  state.t3Status = status;
+  if (!ticketDestination()) setStatus(...status);
+}
 
 const clientFor = (serverId) => {
   if (!state.clients.has(serverId)) {
@@ -66,9 +90,24 @@ const clientFor = (serverId) => {
 
 const currentDevice = () => state.devices.find((d) => d.key === $("device").value);
 const existingDestination = () => $("destination").value === "existing";
+const ticketDestination = () => {
+  const destination = $("destination").value;
+  return Object.hasOwn(TICKET_LABELS, destination) ? destination : null;
+};
 const currentThread = () => state.threads.find((t) => t.threadId === $("thread").value);
+const currentNotionSource = () => state.notionSources.find((source) => source.id === $("notion-source").value);
+
+function canCreateTicket() {
+  if (!state.ticketClient) return false;
+  if (ticketDestination() === "trello") return !!$("trello-list").value;
+  return !!currentNotionSource();
+}
 
 function syncSubmit() {
+  if (ticketDestination()) {
+    $("submit").disabled = state.sending || !canCreateTicket();
+    return;
+  }
   $("submit").disabled = state.sending || !state.deviceReady || (existingDestination()
     ? !!currentDevice()?.environmentId || state.threadsLoading || !currentThread()
     : !findModel($("model").value));
@@ -83,6 +122,7 @@ async function loadCapture() {
     throw new Error("captura no encontrada");
   }
   state.capture = capture;
+  if (capture.trelloDelivery) return;
   capture.shots = (capture.shots ?? []).map((s) => ({ ...s, url: URL.createObjectURL(s.blob) }));
 
   $("page-title").textContent = capture.page?.title || "(sin título)";
@@ -92,7 +132,7 @@ async function loadCapture() {
     $("favicon").src = capture.favIconUrl;
     $("favicon").classList.remove("hidden");
   }
-  document.title = `T3 · ${capture.page?.title || "Nuevo hilo"}`;
+  document.title = `T3 Capture · ${capture.page?.title || "Captura"}`;
 
   for (const shot of capture.shots) {
     const card = document.createElement("div");
@@ -154,10 +194,9 @@ function shotFileName(shot, index) {
   return `captura-${index + 1}-${shot.kind}.${ext}`;
 }
 
-function currentPrompt() {
+function messageOptions() {
   const st = state.settings;
-  return buildPrompt(state.capture, {
-    systemPrompt: existingDestination() ? "" : $("system-prompt").value,
+  return {
     userText: $("user-text").value,
     includeDom: $("inc-dom").checked,
     includeInteractions: $("inc-interactions").checked,
@@ -167,26 +206,41 @@ function currentPrompt() {
     maxEvents: st.maxEventsInPrompt,
     maxConsole: st.maxConsoleInPrompt,
     maxNetwork: st.maxNetworkInPrompt,
+  };
+}
+
+function currentPrompt() {
+  return buildPrompt(state.capture, {
+    ...messageOptions(),
+    systemPrompt: existingDestination() ? "" : $("system-prompt").value,
   });
 }
 
 function renderPreview() {
-  if ($("preview-details").open) $("preview").textContent = currentPrompt();
+  if (!state.capture || !$("preview-details").open) return;
+  const provider = ticketDestination();
+  let message;
+  let note = "";
+  if (provider) {
+    const ticket = buildTicketDescription(state.capture, messageOptions());
+    message = ticket.markdown;
+    if (provider === "trello") {
+      const trello = prepareTrelloDescription(ticket.markdown);
+      if (trello.attachment) note = `Trello tiene un límite de longitud. El contenido completo se adjuntará como ${trello.attachment.name}.`;
+    }
+  } else {
+    message = currentPrompt();
+  }
+  $("preview").textContent = message;
+  $("preview-note").textContent = note;
+  $("preview-note").classList.toggle("hidden", !note);
 }
 
 // ---------- dispositivos ----------
 async function loadDevices() {
   state.servers = await getServers();
   if (!state.servers.length) {
-    setStatus("Conectá T3 en Ajustes para poder enviar capturas.", "error");
-    const a = document.createElement("a");
-    a.href = "#";
-    a.textContent = " Abrir ajustes";
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      browser.runtime.openOptionsPage();
-    });
-    $("status").append(a);
+    setT3Status("Conectá T3 desde Ajustes para enviar a un hilo.", "error", true);
     return;
   }
   const select = $("device");
@@ -225,7 +279,7 @@ async function loadDevices() {
   }
   const preferred = state.devices.find((d) => d.key === state.prefs.deviceKey && d.reachable) || state.devices.find((d) => d.reachable);
   if (preferred) select.value = preferred.key;
-  else setStatus(state.devices[0]?.error || "Ningún dispositivo responde. ¿Está abierto T3 Code?", "error");
+  else setT3Status(state.devices[0]?.error || "Ningún dispositivo responde. ¿Está abierto T3 Code?", "error");
   await loadDeviceData();
 }
 
@@ -238,7 +292,7 @@ async function loadDeviceData() {
   $("model").disabled = true;
   syncSubmit();
   if (!device?.reachable) return;
-  setStatus(`Cargando proyectos y modelos de ${device.label}…`);
+  setT3Status(`Cargando proyectos y modelos de ${device.label}…`);
   try {
     const client = clientFor(device.serverId);
     const [projects, caps] = await Promise.allSettled([client.projects(device.environmentId), client.capabilities(device.environmentId)]);
@@ -249,11 +303,11 @@ async function loadDeviceData() {
     state.deviceReady = true;
     renderProjects();
     renderModels();
-    syncDestination();
+    if (!ticketDestination()) syncDestination();
   } catch (error) {
     if (seq !== state.loadSeq) return;
     console.error(error);
-    setStatus(error.message, "error");
+    setT3Status(error.message, "error");
   }
 }
 
@@ -289,25 +343,112 @@ function resetThreads() {
 }
 
 function syncDestination() {
+  const provider = ticketDestination();
   const existing = existingDestination();
+  const newThread = !existing && !provider;
+  $("t3-fields").classList.toggle("hidden", !!provider);
+  $("ticket-fields").classList.toggle("hidden", !provider);
+  $("trello-fields").classList.toggle("hidden", provider !== "trello");
+  $("notion-fields").classList.toggle("hidden", provider !== "notion");
   $("existing-fields").classList.toggle("hidden", !existing);
-  for (const id of ["new-fields", "sp-details", "model-section"]) $(id).classList.toggle("hidden", existing);
-  $("submit").replaceChildren(existing ? "Enviar al hilo " : "Crear hilo ");
+  for (const id of ["new-fields", "sp-details", "model-section"]) $(id).classList.toggle("hidden", !newThread);
+  $("title-field").classList.toggle("hidden", existing);
+  $("message-label").textContent = provider ? "Descripción del ticket" : "¿Qué querés que haga el agente?";
+  $("user-text").placeholder = provider ? "Ej: el botón de compra no responde en mobile…" : "Ej: este botón no responde en mobile, arreglalo…";
+  $("preview-label").textContent = provider ? "Ver el contenido del ticket" : "Ver el mensaje que se va a enviar";
+  const action = provider ? "Crear ticket" : existing ? "Enviar al hilo" : "Crear hilo";
+  $("submit").replaceChildren(`${action} `);
   const shortcut = document.createElement("kbd");
   shortcut.textContent = "⌘↵";
   $("submit").append(shortcut);
   renderPreview();
-  if (existing) {
-    if (state.deviceReady) setStatus("");
+  if (provider) {
+    resetThreads();
+    setStatus();
+  } else if (existing) {
+    if (state.deviceReady) setT3Status();
+    else setStatus(...state.t3Status);
     loadThreads();
   } else {
     resetThreads();
     if (state.deviceReady) {
       const noModel = !findModel($("model").value);
-      setStatus(noModel ? "Este dispositivo no tiene proveedores de IA habilitados." : "", noModel ? "error" : "");
+      setT3Status(noModel ? "Este dispositivo no tiene proveedores de IA habilitados." : "", noModel ? "error" : "");
+    } else {
+      setStatus(...state.t3Status);
     }
   }
   syncSubmit();
+}
+
+function renderTicketChoices(id, choices, placeholder) {
+  const select = $(id);
+  select.replaceChildren(new Option(placeholder, ""));
+  for (const choice of choices) select.append(new Option(choice.name, choice.id));
+  select.disabled = !choices.length;
+}
+
+async function loadTicketDestinations() {
+  const provider = ticketDestination();
+  const seq = ++state.ticketLoadSeq;
+  state.ticketClient = null;
+  state.notionSources = [];
+  if (!provider) return;
+
+  renderTicketChoices("trello-board", [], "Elegí un tablero…");
+  renderTicketChoices("trello-list", [], "Elegí una lista…");
+  renderTicketChoices("notion-source", [], "Elegí una base de datos…");
+  $("tickets-refresh").disabled = true;
+  $("ticket-status").textContent = "Cargando destinos…";
+  setStatus();
+  syncSubmit();
+  try {
+    const credentials = await getTicketConnection(provider);
+    if (seq !== state.ticketLoadSeq) return;
+    if (!credentials) {
+      $("ticket-status").textContent = `Conectá ${TICKET_LABELS[provider]} desde Ajustes.`;
+      return;
+    }
+    if (provider === "trello") {
+      const client = new TrelloClient(credentials);
+      const boards = await client.boards();
+      if (seq !== state.ticketLoadSeq) return;
+      state.ticketClient = client;
+      renderTicketChoices("trello-board", boards, "Elegí un tablero…");
+      $("ticket-status").textContent = boards.length ? "" : "La cuenta no tiene tableros abiertos.";
+    } else {
+      const client = new NotionClient(credentials);
+      const sources = await client.dataSources();
+      if (seq !== state.ticketLoadSeq) return;
+      state.ticketClient = client;
+      state.notionSources = sources;
+      renderTicketChoices("notion-source", sources, "Elegí una base de datos…");
+      $("ticket-status").textContent = sources.length ? "" : "Agregá la conexión a una base de datos en Notion y actualizá los destinos.";
+    }
+  } catch (error) {
+    if (seq === state.ticketLoadSeq) $("ticket-status").textContent = error.message;
+  } finally {
+    if (seq === state.ticketLoadSeq) $("tickets-refresh").disabled = false;
+  }
+}
+
+async function loadTrelloLists() {
+  const client = state.ticketClient;
+  const board = $("trello-board").value;
+  const seq = ++state.ticketLoadSeq;
+  renderTicketChoices("trello-list", [], "Elegí una lista…");
+  $("ticket-status").textContent = board ? "Cargando listas…" : "";
+  setStatus();
+  syncSubmit();
+  if (!board) return;
+  try {
+    const lists = await client.lists(board);
+    if (seq !== state.ticketLoadSeq) return;
+    renderTicketChoices("trello-list", lists, "Elegí una lista…");
+    $("ticket-status").textContent = lists.length ? "" : "Este tablero no tiene listas abiertas.";
+  } catch (error) {
+    if (seq === state.ticketLoadSeq) $("ticket-status").textContent = error.message;
+  }
 }
 
 async function loadThreads(more = false) {
@@ -446,7 +587,7 @@ function renderModels(selectKey) {
     select.append(group);
   }
   if (!select.options.length) {
-    setStatus("Este dispositivo no tiene proveedores de IA habilitados.", "error");
+    setT3Status("Este dispositivo no tiene proveedores de IA habilitados.", "error");
     return;
   }
   const wanted = selectKey || state.prefs.modelKey;
@@ -498,7 +639,7 @@ function selectedOptions() {
 async function searchModels(query) {
   const device = currentDevice();
   if (!device || !query.trim()) return;
-  setStatus(`Buscando “${query}”…`);
+  setT3Status(`Buscando “${query}”…`);
   try {
     const caps = await clientFor(device.serverId).capabilities(device.environmentId, query.trim());
     let first = null;
@@ -510,17 +651,18 @@ async function searchModels(query) {
         if (existing && !existing.models.some((m) => m.id === model.id)) existing.models.push(model);
       }
     }
-    if (!first) return setStatus(`No hay modelos que coincidan con “${query}”.`, "error");
+    if (!first) return setT3Status(`No hay modelos que coincidan con “${query}”.`, "error");
     renderModels(first);
-    setStatus("");
+    setT3Status();
   } catch (error) {
-    setStatus(error.message, "error");
+    setT3Status(error.message, "error");
   }
 }
 
 // ---------- enviar captura ----------
 async function submitCapture() {
   if ($("submit").disabled || state.sending) return;
+  if (ticketDestination()) return submitTicket();
   const device = currentDevice();
   const existing = existingDestination();
   const thread = currentThread();
@@ -579,7 +721,12 @@ async function submitCapture() {
       } : {}),
     }).catch(console.error);
     await deleteCapture(state.capture.id).catch(() => {});
-    showDone({ ...result, link: result?.link || (existing ? thread.link : null) }, device, existing ? thread : null, found);
+    showDone({
+      title: existing ? "Captura enviada" : "Hilo creado",
+      detail: existing ? `${thread.title} · ${device.label}` : `${projectLabel()} · ${device.label} · ${found.model.label || found.model.id}`,
+      link: result?.link || (existing ? thread.link : null),
+      provider: "T3",
+    });
   } catch (error) {
     console.error(error);
     // Error definitivo de T3: el próximo intento es una solicitud nueva.
@@ -592,26 +739,144 @@ async function submitCapture() {
   }
 }
 
-function showDone(result, device, thread, found) {
+async function submitTicket() {
+  const provider = ticketDestination();
+  const client = state.ticketClient;
+  const title = $("title").value.trim() || autoTitle(state.capture, $("user-text").value);
+  const content = buildTicketDescription(state.capture, messageOptions());
+  const files = includedShots().map((shot, i) => ({ blob: shot.blob, name: shotFileName(shot, i), label: shot.label }));
+
+  state.sending = true;
+  state.ticketConnectionChanged = false;
+  $("app").inert = true;
+  syncSubmit();
+  try {
+    await withTicketCapture(async (capture) => {
+      if (!capture) throw new Error("Esta captura ya se envió o se eliminó.");
+      if (capture.trelloDelivery) {
+        showTrelloDelivery(capture.trelloDelivery);
+      } else if (provider === "trello") {
+        await submitTrelloTicket(client, capture, title, content.markdown, files);
+      } else {
+        const source = currentNotionSource();
+        const { body, uploads } = client.preparePage(source, title, content, files);
+        for (const [i, { file, uploadRef }] of uploads.entries()) {
+          setStatus(`Subiendo captura ${i + 1} de ${uploads.length}…`);
+          uploadRef.id = await client.uploadImage(file);
+        }
+        setStatus("Creando el ticket en Notion…");
+        const page = await client.createPage(body);
+        await deleteCapture(capture.id).catch(console.error);
+        showDone({ title: "Ticket creado", detail: `${title} · ${source.name}`, link: page.url, provider: "Notion" });
+      }
+    });
+  } catch (error) {
+    state.sending = false;
+    $("app").inert = false;
+    if (state.ticketConnectionChanged) loadTicketDestinations();
+    setStatus(error.message, "error");
+    syncSubmit();
+  }
+}
+
+function withTicketCapture(action) {
+  const id = state.capture.id;
+  return navigator.locks.request(`t3-capture-ticket-${id}`, { ifAvailable: true }, async (lock) => {
+    if (!lock) throw new Error("Ya hay un envío en curso para esta captura en otra ventana.");
+    return action(await getCapture(id));
+  });
+}
+
+async function submitTrelloTicket(client, capture, title, markdown, files) {
+  const trello = prepareTrelloDescription(markdown);
+  if (trello.attachment) files.push(trello.attachment);
+  const list = $("trello-list");
+  const detail = `${title} · ${$("trello-board").selectedOptions[0].textContent} / ${list.selectedOptions[0].textContent}`;
+  setStatus("Creando la tarjeta en Trello…");
+  const card = await client.createCard(list.value, title, trello.description);
+  const delivery = { cardId: card.id, link: card.shortUrl || card.url, detail, files };
+  let warning = "";
+  if (files.length) {
+    try {
+      await putCapture({ ...capture, trelloDelivery: delivery });
+    } catch {
+      warning = "No se pudo guardar el reintento. Mantené esta ventana abierta hasta completar los adjuntos.";
+    }
+  }
+  try {
+    await uploadTrelloFiles(client, delivery);
+  } catch (error) {
+    warning = [error.message, warning].filter(Boolean).join(" ");
+  }
+  showTrelloDelivery(delivery, warning);
+}
+
+async function uploadTrelloFiles(client, delivery, reconcile = false) {
+  if (reconcile) {
+    const uploaded = new Set((await client.attachments(delivery.cardId)).map((file) => file.name));
+    delivery.files = delivery.files.filter((file) => !uploaded.has(file.name));
+  }
+  while (delivery.files.length) {
+    const file = delivery.files[0];
+    setStatus(`Subiendo ${file.name}…`);
+    await client.attachFile(delivery.cardId, file);
+    delivery.files.shift();
+  }
+  await deleteCapture(state.capture.id).catch(console.error);
+}
+
+function showTrelloDelivery(delivery, message = "") {
+  showDone({ title: "Ticket creado", detail: delivery.detail, link: delivery.link, provider: "Trello" });
+  if (!delivery.files.length) return;
+  const retry = $("done-retry");
+  const warning = $("done-warning");
+  const updateWarning = (detail) => {
+    const count = delivery.files.length;
+    warning.textContent = `La tarjeta se creó. ${count === 1 ? "Queda un adjunto pendiente." : `Quedan ${count} adjuntos pendientes.`} ${detail}`;
+  };
+  updateWarning(message);
+  warning.classList.remove("hidden");
+  retry.classList.remove("hidden");
+  retry.addEventListener("click", async () => {
+    retry.disabled = true;
+    warning.textContent = "Reintentando adjuntos…";
+    try {
+      await withTicketCapture(async (capture) => {
+        if (!capture) return;
+        const credentials = await getTicketConnection("trello");
+        if (!credentials) throw new Error("Conectá Trello desde Ajustes para terminar la subida.");
+        await uploadTrelloFiles(new TrelloClient(credentials), delivery, true);
+      });
+      warning.classList.add("hidden");
+      retry.classList.add("hidden");
+    } catch (error) {
+      updateWarning(error.message);
+    } finally {
+      retry.disabled = false;
+    }
+  });
+}
+
+function showDone({ title, detail, link, provider }) {
   $("app").classList.add("hidden");
   document.querySelector("footer").classList.add("hidden");
   $("done").classList.remove("hidden");
-  const projectLabel = $("project").selectedOptions[0]?.textContent;
-  $("done-title").textContent = thread ? "Captura enviada" : "Hilo creado";
-  $("done-detail").textContent = thread
-    ? `${thread.title} · ${device.label}`
-    : `${projectLabel} · ${device.label} · ${found.model.label || found.model.id}`;
-  if (result?.link) {
-    $("done-link").href = result.link;
+  $("done-title").textContent = title;
+  $("done-detail").textContent = detail;
+  $("done-link").textContent = `Abrir en ${provider}`;
+  if (link) {
+    $("done-link").href = link;
     $("done-copy").addEventListener("click", async () => {
-      await navigator.clipboard.writeText(result.link);
+      await navigator.clipboard.writeText(link);
       $("done-copy").textContent = "Copiado";
     });
   } else {
     $("done-link").classList.add("hidden");
     $("done-copy").classList.add("hidden");
   }
-  $("done-link").addEventListener("click", () => setTimeout(() => window.close(), 300));
+  $("done-link").addEventListener("click", () => {
+    if ($("done-warning").classList.contains("hidden")) setTimeout(() => window.close(), 300);
+  });
   $("done-close").addEventListener("click", () => window.close());
 }
 
@@ -620,10 +885,28 @@ $("device").addEventListener("change", loadDeviceData);
 $("destination").addEventListener("change", () => {
   state.requestId = null;
   const projectId = $("project").value;
-  renderProjects();
-  if ([...$("project").options].some((o) => o.value === projectId)) $("project").value = projectId;
-  syncWorkspace();
+  if (!ticketDestination() && state.deviceReady) {
+    renderProjects();
+    if ([...$("project").options].some((o) => o.value === projectId)) $("project").value = projectId;
+    syncWorkspace();
+  }
   syncDestination();
+  loadTicketDestinations();
+});
+$("trello-board").addEventListener("change", loadTrelloLists);
+for (const id of ["trello-list", "notion-source"]) {
+  $(id).addEventListener("change", () => {
+    setStatus();
+    syncSubmit();
+  });
+}
+$("tickets-refresh").addEventListener("click", loadTicketDestinations);
+$("ticket-settings").addEventListener("click", openSettings);
+browser.storage.onChanged.addListener((changes, area) => {
+  const provider = ticketDestination();
+  if (area !== "local" || !provider || !changes[`${provider}Connection`]) return;
+  if (state.sending) state.ticketConnectionChanged = true;
+  else loadTicketDestinations();
 });
 $("project").addEventListener("change", () => {
   syncWorkspace();
@@ -660,10 +943,7 @@ $("system-prompt").addEventListener("input", () => {
 });
 $("sp-save-project").addEventListener("click", () => saveSystemPrompt("project"));
 $("sp-save-default").addEventListener("click", () => saveSystemPrompt("default"));
-$("sp-manage").addEventListener("click", (e) => {
-  e.preventDefault();
-  browser.runtime.openOptionsPage();
-});
+$("sp-manage").addEventListener("click", openSettings);
 $("submit").addEventListener("click", submitCapture);
 document.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !$("submit").disabled) {
@@ -672,7 +952,9 @@ document.addEventListener("keydown", (e) => {
   }
 });
 $("lightbox").addEventListener("click", () => $("lightbox").close());
-window.addEventListener("pagehide", () => state.capture?.shots.forEach((s) => URL.revokeObjectURL(s.url)));
+window.addEventListener("pagehide", () => state.capture?.shots?.forEach((s) => {
+  if (s.url) URL.revokeObjectURL(s.url);
+}));
 
 // ---------- inicio ----------
 state.settings = await getSettings();
@@ -680,5 +962,10 @@ state.prefs = await getPrefs();
 state.systemPrompts = await getSystemPrompts();
 syncSystemPrompt();
 await loadCapture();
-$("user-text").focus();
-await loadDevices();
+if (state.capture.trelloDelivery) {
+  showTrelloDelivery(state.capture.trelloDelivery);
+} else {
+  $("destination").disabled = false;
+  $("user-text").focus();
+  await loadDevices();
+}

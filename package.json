@@ -1,8 +1,8 @@
 {
   "name": "t3-capture",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
-  "description": "Extensión para Zen, Firefox y Chrome: capturá un elemento o pantalla y envialo a un hilo nuevo o existente de T3 Code con contexto del DOM y eventos.",
+  "description": "Extensión para Zen, Firefox y Chrome que envía capturas y contexto a T3 Code, Trello y Notion.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -14,7 +14,7 @@
     "build": "npm run build:firefox && npm run build:chrome",
     "build:firefox": "web-ext build -s extension -a dist --overwrite-dest --filename t3-capture-firefox-{version}.xpi",
     "build:chrome": "node scripts/build-chrome.mjs",
-    "test": "node --test test/format.test.js",
+    "test": "node --test test/format.test.js test/tickets.test.js",
     "test:live": "node test/live-t3.mjs",
     "test:dom": "node test/content-dom.mjs",
     "test:chrome": "node test/chrome-e2e.mjs",

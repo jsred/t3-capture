@@ -5,7 +5,7 @@
 
 > Proyecto comunitario, no oficial. No está afiliado a T3 Code.
 
-Extensión para **Zen y Firefox** (142 o posterior) y **Chrome** (120 o posterior, también Brave, Arc, Edge y otros basados en Chromium): seleccionás un elemento, un área o la parte visible de una página, le agregás contexto escrito y lo enviás a un hilo nuevo o existente en **T3 Code** con:
+Extensión para **Zen y Firefox** (142 o posterior) y **Chrome** (120 o posterior, también Brave, Arc, Edge y otros basados en Chromium). Seleccionás un elemento, un área o la parte visible de una página, escribís qué pasó y enviás la captura a un hilo de **T3 Code** o a un ticket de **Trello** o **Notion**. Podés incluir:
 
 - **Capturas de pantalla:** el elemento recortado, más la página con el elemento marcado.
 - **Contexto del DOM:** selector único, XPath, rol y nombre accesible, HTML, estilos computados, ancestros, estado del campo y componentes **React/Vue** con el archivo fuente cuando la app corre en modo dev.
@@ -34,7 +34,7 @@ Cada token dura 30 días. Las sesiones aparecen en T3 → Settings → Connectio
 
 ## Instalar
 
-Requisito: tener [T3 Code](https://t3.codes) instalado y abierto en la máquina donde van a correr los hilos.
+Para enviar capturas a hilos, necesitás tener [T3 Code](https://t3.codes) instalado y abierto en la máquina donde van a correr. Para crear tickets, conectá Trello o Notion desde los ajustes de la extensión.
 
 ### Zen / Firefox
 
@@ -77,6 +77,16 @@ También podés usar **Aprobar en T3 (ventana)**: abre la pantalla de aprobació
 
 Para otras máquinas (un VPS por Tailscale, otra Mac), emparejá cada una por separado. Si tenés activados los entornos vinculados en T3, esas máquinas también aparecen como dispositivos a través de la principal.
 
+## Crear tickets en Trello o Notion
+
+1. En la extensión, abrí **Ajustes → Integraciones para tickets**.
+   - **Trello.** Generá una clave de API en el panel de Power-Ups y pegala en Ajustes. Tocá **Autorizar en Trello** para generar un token de lectura y escritura válido por 30 días, pegá el token y tocá **Conectar Trello**. [Autorización de Trello](https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/)
+   - **Notion.** Creá una conexión interna con capacidades de lectura e inserción de contenido y dale acceso a la base de datos de tickets desde **⋯ → Conexiones**. Pegá el token en Ajustes y tocá **Conectar Notion**. [Conexiones internas de Notion](https://developers.notion.com/guides/connections-and-tokens/internal-connections)
+2. Hacé una captura y en **Destino → Enviar a** elegí **Trello** o **Notion**. Seleccioná el tablero y la lista de Trello o la base de datos de Notion. Si la base tiene varias fuentes de datos, elegí la fuente en la que querés crear el ticket.
+3. Escribí el título y la descripción o dejá el título automático. Revisá las imágenes y el contexto seleccionados y tocá **Crear ticket**. El compositor muestra un enlace a la tarjeta o página creada.
+
+Si el contenido supera el límite de descripción de Trello, el ticket guarda el texto completo en `contexto-completo.md`. Si falla un adjunto después de crear la tarjeta, podés reintentar la subida sobre la misma tarjeta. Si cerraste el compositor, abrí **Adjuntos pendientes en Trello** desde el botón de la extensión y elegí el ticket.
+
 ## Instrucciones del sistema
 
 Podés definir instrucciones que se agregan a cada hilo nuevo, por ejemplo “Respondé en español” o “Usá pnpm y corré los tests antes de terminar”:
@@ -92,19 +102,19 @@ Se configuran en los ajustes de la extensión, o desde el compositor (*Destino �
 
 | Acción | Cómo |
 |---|---|
-| Seleccionar un elemento | Popup, <kbd>Alt+Shift+E</kbd>, o click derecho → *Crear hilo de T3 con este elemento* |
+| Seleccionar un elemento | Popup, <kbd>Alt+Shift+E</kbd>, o click derecho → *T3 Capture: capturar este elemento* |
 | Seleccionar un área | Popup, <kbd>Alt+Shift+A</kbd> o menú contextual |
 | Captura visible | Popup, <kbd>Alt+Shift+S</kbd> o menú contextual |
 | En el selector | <kbd>↑</kbd> padre · <kbd>↓</kbd> hijo · <kbd>Enter</kbd> confirmar · <kbd>Esc</kbd> cancelar |
-| Crear el hilo o enviar al hilo elegido | <kbd>⌘ Enter</kbd> / <kbd>Ctrl Enter</kbd> en el compositor |
+| Crear el hilo, enviar al hilo elegido o crear el ticket | <kbd>⌘ Enter</kbd> / <kbd>Ctrl Enter</kbd> en el compositor |
 
 Los atajos se cambian desde *Cambiar atajos* en los ajustes de la extensión (en Zen/Firefox abre `about:addons`; en Chrome, `chrome://extensions/shortcuts`).
 
 ## Privacidad
 
-- Todo queda entre el navegador y tu T3; no hay servicios externos. Detalle completo en [PRIVACY.md](PRIVACY.md).
+- La extensión envía la captura y el contexto seleccionados directamente al destino que elegís. Detalle en [PRIVACY.md](PRIVACY.md).
 - Los campos de contraseña, tarjeta, tokens y similares siempre se registran como `[oculto]`. Podés desactivar el registro de valores de inputs en los ajustes.
-- Los eventos viven solo en la memoria de cada pestaña (máximo 200 interacciones, 150 líneas de consola y 150 requests) y se pierden al recargar. Las capturas se guardan en IndexedDB hasta enviarlas a T3 (o 24 horas como máximo).
+- Los eventos viven solo en la memoria de cada pestaña (máximo 200 interacciones, 150 líneas de consola y 150 requests) y se pierden al recargar. Las capturas pendientes se guardan en IndexedDB y se borran al enviar. Al iniciar el navegador, la extensión borra las pendientes de más de 24 horas.
 - Antes de enviar podés ver el mensaje exacto (*Ver el mensaje que se va a enviar*) y apagar cada sección.
 
 ## Limitaciones
@@ -114,7 +124,7 @@ Los atajos se cambian desde *Cambiar atajos* en los ajustes de la extensión (en
 - Para registrar consola y red, la extensión envuelve `console.*`, `fetch` y `XMLHttpRequest`. En DevTools, los `console.log` van a aparecer originados en `recorder-main.js`.
 - En pestañas abiertas antes de instalar la extensión, los eventos se registran desde la primera captura.
 - El MCP de T3 rechaza requests con un header `Origin` ajeno. Por eso la extensión lo quita solo en sus propios requests a `/mcp`: en Firefox con `webRequest` y en Chrome con una regla de `declarativeNetRequest`.
-- En Chrome, el menú contextual *Crear hilo de T3 con este elemento* usa el último elemento sobre el que hiciste click derecho. Firefox lo resuelve con `menus.getTargetElement`.
+- En Chrome, el menú contextual *T3 Capture: capturar este elemento* usa el último elemento sobre el que hiciste click derecho. Firefox lo resuelve con `menus.getTargetElement`.
 
 ## Estructura
 
@@ -129,6 +139,7 @@ extension/                 fuente común (manifest de Firefox)
   popup/                   botones de captura
   lib/browser-shim.js      alias browser → chrome
   lib/t3client.js          OAuth + cliente MCP de T3
+  lib/tickets.js           clientes y adjuntos de Trello y Notion
   lib/format.js            armado del mensaje
 scripts/
   build-chrome.mjs         genera dist/chrome y su manifest
@@ -150,10 +161,10 @@ test/
 Issues y PRs bienvenidos.
 
 - `npm run lint` valida la extensión con `web-ext`.
-- `npm test` corre los tests unitarios del armado del mensaje.
+- `npm test` corre los tests unitarios del armado del mensaje y los límites de los tickets.
 - `npm run test:dom` ejercita los content scripts en Chromium headless (`npx playwright install chromium` la primera vez).
-- `npm run test:chrome` carga `dist/chrome` en Chromium y recorre el flujo entero contra un T3 simulado: selector, capturas, compositor y creación del hilo. Con `-- --live <código de t3 pair>` también empareja con tu T3 real (no crea hilos).
-- `npm run test:firefox` hace lo mismo con el `.xpi` en Zen o Firefox headless, con un perfil temporal. Necesita [geckodriver](https://github.com/mozilla/geckodriver/releases) (`GECKODRIVER`) y el navegador (`FIREFOX_BIN`, por defecto Zen en `/Applications`).
+- `npm run test:chrome` carga `dist/chrome` en Chromium y prueba el flujo de captura, envío a hilos y creación de tickets con APIs simuladas. Con `-- --live <código de t3 pair>` también empareja con tu T3 real (no crea hilos).
+- `npm run test:firefox` instala el `.xpi` en un perfil temporal de Zen o Firefox headless y prueba los flujos de T3 y Trello con respuestas simuladas. Necesita [geckodriver](https://github.com/mozilla/geckodriver/releases) (`GECKODRIVER`) y el navegador (`FIREFOX_BIN`, por defecto Zen en `/Applications`).
 - `npm run test:live -- <código de t3 pair>` prueba el cliente contra un T3 real. Crea una sesión en T3 que después podés revocar en Settings → Connections.
 
 ## Publicar una versión

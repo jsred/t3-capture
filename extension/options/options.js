@@ -4,16 +4,94 @@ import {
   getServers,
   getSettings,
   getSystemPrompts,
+  getTicketConnection,
   removeServer,
   saveDefaultSystemPrompt,
   saveProjectSystemPrompt,
   saveServer,
+  saveTicketConnection,
   updateSettings,
 } from "../lib/store.js";
 import { openShortcutSettings } from "../lib/platform.js";
+import { NotionClient, TICKET_LABELS, TrelloClient } from "../lib/tickets.js";
 
 const $ = (id) => document.getElementById(id);
 const ALL_URLS = { origins: ["<all_urls>"] };
+
+function setupTicketConnection(provider, Client) {
+  const form = $(`${provider}-form`);
+  const submit = form.querySelector('[type="submit"]');
+  const disconnect = form.querySelector("[data-disconnect]");
+  const status = form.querySelector('[role="status"]');
+  let connected = false;
+  const render = (message = connected ? "Conectado" : "Sin conectar", error = false) => {
+    status.textContent = message;
+    status.className = error ? "small status error" : "small muted";
+    submit.textContent = `${connected ? "Cambiar conexión de" : "Conectar"} ${TICKET_LABELS[provider]}`;
+    disconnect.classList.toggle("hidden", !connected);
+  };
+  const setBusy = (busy) => {
+    for (const field of form.elements) field.disabled = busy;
+  };
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const credentials = Object.fromEntries([...new FormData(form)].map(([key, value]) => [key, value.trim()]));
+    if (Object.values(credentials).some((value) => !value || /[\s"\\]/.test(value))) {
+      render("Pegá las credenciales tal como aparecen en el servicio.", true);
+      return;
+    }
+    setBusy(true);
+    render("Comprobando conexión…");
+    try {
+      const account = await new Client(credentials).checkConnection();
+      if (provider === "notion") {
+        const limit = account.bot?.workspace_limits?.max_file_upload_size_in_bytes;
+        if (Number.isSafeInteger(limit) && limit > 0) credentials.maxFileBytes = limit;
+      }
+      await saveTicketConnection(provider, credentials);
+      connected = true;
+      form.reset();
+      render();
+    } catch (error) {
+      render(error.message, true);
+    } finally {
+      setBusy(false);
+    }
+  });
+  disconnect.addEventListener("click", async () => {
+    setBusy(true);
+    try {
+      await saveTicketConnection(provider, null);
+      connected = false;
+      form.reset();
+      render();
+    } catch (error) {
+      render(error.message, true);
+    } finally {
+      setBusy(false);
+    }
+  });
+  setBusy(true);
+  getTicketConnection(provider).then((credentials) => {
+    connected = !!credentials;
+    render();
+  }).catch((error) => render(error.message, true)).finally(() => setBusy(false));
+}
+
+setupTicketConnection("trello", TrelloClient);
+setupTicketConnection("notion", NotionClient);
+
+$("trello-authorize").addEventListener("click", () => {
+  const key = $("trello-form").elements.apiKey;
+  if (!key.value.trim()) {
+    key.focus();
+    key.reportValidity();
+    return;
+  }
+  const url = new URL("https://trello.com/1/authorize");
+  url.search = new URLSearchParams({ key: key.value.trim(), name: "T3 Capture", scope: "read,write", expiration: "30days", response_type: "token" });
+  browser.tabs.create({ url: url.href });
+});
 
 // ---------- permisos ----------
 async function checkPermission() {

@@ -16,6 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { startMockT3 } from "./mock-t3.mjs";
+import { testTicketDestinations } from "./ticket-destinations.mjs";
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const liveIndex = process.argv.indexOf("--live");
@@ -414,6 +415,9 @@ for (const destination of ["existing", "new"]) {
 await composer6.close();
 mock.projectListError = null;
 console.log("✓ error de carga de dispositivo conservado al cambiar de destino");
+
+await sw.evaluate(() => chrome.storage.local.remove("servers"));
+await testTicketDestinations({ context, extUrl, startCapture, page });
 
 // ---------- T3 real (opcional) ----------
 if (liveCode) {

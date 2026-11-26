@@ -42,6 +42,13 @@ export const putCapture = (capture) => tx("readwrite", (s) => promisify(s.put(ca
 export const getCapture = (id) => tx("readonly", (s) => promisify(s.get(id)));
 export const deleteCapture = (id) => tx("readwrite", (s) => promisify(s.delete(id)));
 
+export async function pendingTrelloCaptures() {
+  const all = await tx("readonly", (s) => promisify(s.getAll()));
+  return all.filter((capture) => capture.trelloDelivery?.files.length)
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(({ id, trelloDelivery }) => ({ id, detail: trelloDelivery.detail }));
+}
+
 export async function pruneCaptures() {
   const all = await tx("readonly", (s) => promisify(s.getAll()));
   const cutoff = Date.now() - MAX_AGE_MS;

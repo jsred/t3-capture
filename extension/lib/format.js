@@ -132,9 +132,27 @@ function networkSection(list, ref, max) {
  *                   screenshotNames, maxEvents, maxConsole, maxNetwork }
  */
 export function buildPrompt(capture, options) {
+  const { systemPrompt = "", userText = "" } = options ?? {};
+  const out = [];
+  // T3 no tiene system prompt al crear un hilo: va al principio del mensaje.
+  if (systemPrompt.trim()) out.push("<instrucciones_del_sistema>", systemPrompt.trim(), "</instrucciones_del_sistema>", "");
+  out.push(userText.trim() || "_(Sin instrucciones adicionales: revisá el contexto capturado y proponé qué hacer.)_", "", "---", "", captureContext(capture, options));
+  return limitMessage(out.join("\n"));
+}
+
+export function buildTicketDescription(capture, options = {}) {
+  const description = (options.userText ?? "").trim();
+  const context = limitMessage(captureContext(capture, options));
+  const markdown = description ? `${description}\n\n---\n\n${context}` : context;
+  return { description, context, markdown };
+}
+
+function limitMessage(message) {
+  return message.length > MAX_MESSAGE ? `${message.slice(0, MAX_MESSAGE)}\n\n_(contexto truncado por tamaño)_` : message;
+}
+
+function captureContext(capture, options) {
   const {
-    systemPrompt = "",
-    userText = "",
     includeDom = true,
     includeInteractions = true,
     includeConsole = true,
@@ -146,12 +164,7 @@ export function buildPrompt(capture, options) {
   } = options ?? {};
   const ref = capture.capturedAt ?? Date.now();
   const page = capture.page ?? {};
-  const out = [];
-
-  // T3 no tiene system prompt al crear un hilo: va al principio del mensaje.
-  if (systemPrompt.trim()) out.push("<instrucciones_del_sistema>", systemPrompt.trim(), "</instrucciones_del_sistema>", "");
-  out.push(userText.trim() || "_(Sin instrucciones adicionales: revisá el contexto capturado y proponé qué hacer.)_");
-  out.push("", "---", "", "## Contexto capturado desde el navegador");
+  const out = ["## Contexto capturado desde el navegador"];
   out.push(`- **Captura:** ${MODE_LABEL[capture.mode] || capture.mode} · ${new Date(ref).toISOString()}`);
   out.push(`- **URL:** ${page.url}`);
   if (page.title) out.push(`- **Título:** ${page.title}`);
@@ -162,11 +175,9 @@ export function buildPrompt(capture, options) {
   if (page.selectedText) out.push("", "**Texto seleccionado en la página:**", fence(page.selectedText));
 
   if (includeDom && capture.element) out.push("", elementSection(capture.element));
-  if (includeInteractions && capture.interactions?.length) out.push("", interactionsSection(capture.interactions, ref, maxEvents));
-  if (includeConsole && capture.console?.length) out.push("", consoleSection(capture.console, ref, maxConsole));
-  if (includeNetwork && capture.network?.length) out.push("", networkSection(capture.network, ref, maxNetwork));
+  if (includeInteractions && maxEvents > 0 && capture.interactions?.length) out.push("", interactionsSection(capture.interactions, ref, maxEvents));
+  if (includeConsole && maxConsole > 0 && capture.console?.length) out.push("", consoleSection(capture.console, ref, maxConsole));
+  if (includeNetwork && maxNetwork > 0 && capture.network?.length) out.push("", networkSection(capture.network, ref, maxNetwork));
 
-  let message = out.join("\n");
-  if (message.length > MAX_MESSAGE) message = `${message.slice(0, MAX_MESSAGE)}\n\n_(contexto truncado por tamaño)_`;
-  return message;
+  return out.join("\n");
 }

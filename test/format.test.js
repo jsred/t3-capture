@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { autoTitle, buildPrompt, summarize } from "../extension/lib/format.js";
+import { autoTitle, buildPrompt, buildTicketDescription, summarize } from "../extension/lib/format.js";
 import { resolveSystemPrompt } from "../extension/lib/store.js";
 
 const now = 1_800_000_000_000;
@@ -34,6 +34,14 @@ test("las secciones se pueden desactivar", () => {
   const p = buildPrompt(capture, { includeInteractions: false, includeConsole: false, includeNetwork: false });
   assert.doesNotMatch(p, /Interacciones|Consola|### Red/);
   assert.match(p, /Sin instrucciones adicionales/);
+});
+
+test("un ticket sin descripción incluye el contexto elegido y respeta los límites en cero", () => {
+  const ticket = buildTicketDescription(capture, { systemPrompt: "Corré los tests", maxEvents: 0, maxConsole: 0, maxNetwork: 0 });
+  assert.equal(ticket.description, "");
+  assert.equal(ticket.markdown, ticket.context);
+  assert.match(ticket.markdown, /https:\/\/app\.test\/x/);
+  assert.doesNotMatch(ticket.markdown, /Sin instrucciones|Corré los tests|Interacciones|Consola|### Red/);
 });
 
 test("título automático y resumen", () => {

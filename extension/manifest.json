@@ -2,16 +2,16 @@
   "manifest_version": 3,
   "name": "T3 Capture",
   "short_name": "T3 Capture",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "author": "jsred",
   "homepage_url": "https://github.com/jsred/t3-capture",
-  "description": "Seleccioná un elemento o sacá una captura y enviala a un hilo nuevo o existente de T3 Code con contexto del DOM y eventos.",
+  "description": "Enviá capturas y contexto del navegador a T3 Code, o creá tickets en Trello y Notion.",
   "browser_specific_settings": {
     "gecko": {
       "id": "t3-capture@jsred.github.io",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
-        "required": ["websiteContent", "websiteActivity", "browsingActivity"]
+        "required": ["websiteContent", "websiteActivity", "browsingActivity", "authenticationInfo"]
       }
     }
   },
